@@ -7,6 +7,20 @@ export enum AgentStatus {
   OFFLINE = 'OFFLINE'
 }
 
+export enum AgentRoleType {
+  LEADER = 'LEADER',
+  WORKER = 'WORKER'
+}
+
+export enum WorkflowStage {
+  INTENT = 'INTENT_ANALYSIS',
+  PLANNING = 'STRATEGIC_PLANNING',
+  EXECUTION = 'EXECUTION_SWARM',
+  OPTIMIZATION = 'AUTO_OPTIMIZATION',
+  ARCHIVAL = 'CONTEXT_ARCHIVAL',
+  IDLE = 'SYSTEM_IDLE'
+}
+
 export enum MemoryTier {
   ULTRA_SHORT = 'ULTRA_SHORT', // RAM (Volatile)
   SHORT = 'SHORT', // Session
@@ -32,28 +46,49 @@ export enum SystemMode {
 }
 
 // Data Structures
+export interface AutonomousConfig {
+  enabled: boolean;
+  mode24_7: boolean; // Continuous loop
+  maxRunTimeHours: number; // 0 = infinite
+  maxDailyTokens: number; // Cost safety
+  safeCleanup: boolean; // Protect "SACRED" files
+}
+
 export interface Agent {
   id: string;
   name: string;
-  category: 'CORE' | 'DEV' | 'MARKETING' | 'DATA' | 'SUPPORT' | 'SPEC'; // Added SPEC
-  role: string;
+  teamId: string; // Grouping ID
+  category: 'CORE' | 'DEV' | 'MARKETING' | 'DATA' | 'SUPPORT' | 'SPEC';
+  roleType: AgentRoleType; // Leader or Worker
+  role: string; // Specific job title
   status: AgentStatus;
-  enabled: boolean; // New: is the container powered on?
-  cpuUsage: number; // Simulated utilization 0-100
-  ramUsage: number; // MB
+  enabled: boolean; 
+  cpuUsage: number; 
+  ramUsage: number; 
   lastActive: number;
   currentTask?: string;
-  thoughtProcess?: string[]; // Real logs from introspection
+  thoughtProcess?: string[];
+}
+
+export interface Squad {
+  id: string;
+  name: string;
+  leaderId: string;
+  members: string[];
+  category: string;
+  active: boolean;
 }
 
 export interface SystemMetrics {
-  totalRamUsage: number; // In GB
-  vramUsage: number; // In GB
+  totalRamUsage: number; 
+  vramUsage: number; 
   activeAgents: number;
   introspectionDepth: number;
-  awarenessScore: number; // Calculated real score
+  awarenessScore: number; 
   fps: number;
   currentMode: SystemMode;
+  tokenUsageToday: number; // New metric
+  currentStage: WorkflowStage; // New metric
 }
 
 export interface MemoryNode {
@@ -61,7 +96,7 @@ export interface MemoryNode {
   content: string;
   timestamp: number;
   tier: MemoryTier;
-  importance: number; // 0-1
+  importance: number; 
   tags: string[];
 }
 

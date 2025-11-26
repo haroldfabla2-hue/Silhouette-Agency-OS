@@ -1,46 +1,119 @@
-import { Agent, AgentStatus, SystemMode } from "../types";
+import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage } from "../types";
+import { INITIAL_AGENTS } from "../constants";
 
-// The "Swarm" Manager V2.0
-// Manages 131 Virtual Agents with Dynamic Power Scaling.
-
-const ROLES = [
-  { prefix: 'CORE', role: 'System Orchestration', count: 5 },
-  { prefix: 'DEV', role: 'Full Stack Generator', count: 25 },
-  { prefix: 'MKT', role: 'Content Strategist', count: 20 },
-  { prefix: 'DATA', role: 'Pattern Analyst', count: 15 },
-  { prefix: 'SUP', role: 'User Success', count: 12 },
-  { prefix: 'SPEC', role: 'Industry Specialist', count: 54 } 
-];
+// The "Swarm" Manager V3.0
+// Manages Squads (Leaders + Workers) and responds to Workflow Events.
 
 class AgentSwarmOrchestrator {
   private swarm: Agent[] = [];
+  private squads: Squad[] = [];
   private currentMode: SystemMode = SystemMode.ECO;
-  private activeCategories: Set<string> = new Set(['CORE']);
 
   constructor() {
     this.initializeSwarm();
-    this.applyMode(SystemMode.ECO); // Start safe
+    this.applyMode(SystemMode.ECO); 
   }
 
   private initializeSwarm() {
-    let idCounter = 1;
-    this.swarm = [];
-    ROLES.forEach(group => {
-      for (let i = 0; i < group.count; i++) {
-        this.swarm.push({
-          id: `${group.prefix}-${String(idCounter).padStart(3, '0')}`,
-          name: `${group.prefix}_Unit_${i+1}`,
-          category: group.prefix as any,
-          role: group.role,
-          status: AgentStatus.OFFLINE, // Start offline
-          enabled: false,
-          cpuUsage: 0,
-          ramUsage: 50 + Math.random() * 50, // Base RAM footprint per container
-          lastActive: Date.now()
-        });
-        idCounter++;
+    this.swarm = [...INITIAL_AGENTS]; // Load Heroes
+    
+    // Define Squad Structure
+    const squadDefs = [
+      { id: 'TEAM_CORE', name: 'Orchestration Command', leader: 'core-01', cat: 'CORE' },
+      { id: 'TEAM_STRATEGY', name: 'Strategic Planning', leader: 'strat-01', cat: 'SPEC' },
+      { id: 'TEAM_CONTEXT', name: 'Context & Memory', leader: 'ctx-01', cat: 'DATA' },
+      { id: 'TEAM_OPTIMIZE', name: 'QA & Optimization', leader: 'opt-01', cat: 'DEV' },
+      { id: 'TEAM_DEV', name: 'Engineering Swarm', leader: 'dev-lead', cat: 'DEV', workers: 25 },
+      { id: 'TEAM_MKT', name: 'Creative Studio', leader: 'mkt-lead', cat: 'MARKETING', workers: 20 },
+      { id: 'TEAM_SPEC', name: 'Specialist Hive', leader: 'strat-01', cat: 'SPEC', workers: 40 }, // Assigned to strategy leader
+    ];
+
+    // Generate Drones/Workers to reach 131 agents
+    let idCounter = 100;
+    
+    squadDefs.forEach(def => {
+      // Create Squad Object
+      const members = this.swarm.filter(a => a.teamId === def.id).map(a => a.id);
+      
+      // Generate Workers if needed
+      if (def.workers) {
+        for (let i = 0; i < def.workers; i++) {
+          const droneId = `${def.cat.toLowerCase()}-drone-${idCounter++}`;
+          const drone: Agent = {
+            id: droneId,
+            name: `${def.cat}_Worker_${i+1}`,
+            teamId: def.id,
+            category: def.cat as any,
+            roleType: AgentRoleType.WORKER,
+            role: `${def.cat} Specialist`,
+            status: AgentStatus.OFFLINE,
+            enabled: false,
+            cpuUsage: 0,
+            ramUsage: 50 + Math.random() * 30,
+            lastActive: Date.now()
+          };
+          this.swarm.push(drone);
+          members.push(droneId);
+        }
+      }
+
+      this.squads.push({
+        id: def.id,
+        name: def.name,
+        leaderId: def.leader,
+        members: members,
+        category: def.cat,
+        active: false
+      });
+    });
+  }
+
+  public activateSquadsForStage(stage: WorkflowStage) {
+    // Map Stages to Teams
+    const mapping: Record<WorkflowStage, string[]> = {
+      [WorkflowStage.IDLE]: ['TEAM_CORE'],
+      [WorkflowStage.INTENT]: ['TEAM_CORE'], // Prompt Eng is in Core squad
+      [WorkflowStage.PLANNING]: ['TEAM_STRATEGY'],
+      [WorkflowStage.EXECUTION]: ['TEAM_DEV', 'TEAM_MKT', 'TEAM_SPEC'],
+      [WorkflowStage.OPTIMIZATION]: ['TEAM_OPTIMIZE'],
+      [WorkflowStage.ARCHIVAL]: ['TEAM_CONTEXT']
+    };
+
+    const activeTeams = mapping[stage] || [];
+    
+    // In High/Ultra mode, we keep execution teams warm
+    if (this.currentMode === SystemMode.ULTRA) return; 
+
+    // Enable specific squads
+    this.squads.forEach(squad => {
+      // Core is always active
+      if (squad.id === 'TEAM_CORE' || activeTeams.includes(squad.id)) {
+        this.setSquadState(squad.id, true);
+      } else {
+        // If not in this stage, put to sleep to save VRAM (unless in Custom/High mode)
+        if (this.currentMode === SystemMode.ECO) {
+           this.setSquadState(squad.id, false);
+        }
       }
     });
+  }
+
+  private setSquadState(squadId: string, enabled: boolean) {
+    const squad = this.squads.find(s => s.id === squadId);
+    if (squad) {
+      squad.active = enabled;
+      this.swarm.filter(a => a.teamId === squadId).forEach(agent => {
+        agent.enabled = enabled;
+        if (!enabled) {
+            agent.status = AgentStatus.OFFLINE;
+            agent.ramUsage = 0;
+            agent.cpuUsage = 0;
+        } else {
+            agent.status = AgentStatus.IDLE;
+            agent.ramUsage = 100; // Boot
+        }
+      });
+    }
   }
 
   public setMode(mode: SystemMode) {
@@ -48,93 +121,59 @@ class AgentSwarmOrchestrator {
     this.applyMode(mode);
   }
 
-  public setCustomToggle(category: string, enabled: boolean) {
+  public setCustomToggle(squadId: string, enabled: boolean) {
     this.currentMode = SystemMode.CUSTOM;
-    if (enabled) {
-      this.activeCategories.add(category);
-    } else {
-      this.activeCategories.delete(category);
-    }
-    this.refreshAgentStates();
+    this.setSquadState(squadId, enabled);
   }
 
   public getActiveCategories(): string[] {
-    return Array.from(this.activeCategories);
+    return this.squads.filter(s => s.active).map(s => s.id);
+  }
+
+  public getSquads(): Squad[] {
+    return this.squads;
   }
 
   private applyMode(mode: SystemMode) {
-    this.activeCategories.clear();
-    
-    // Always enable CORE
-    this.activeCategories.add('CORE');
+    // Reset all first
+    this.squads.forEach(s => this.setSquadState(s.id, false));
+    this.setSquadState('TEAM_CORE', true); // Always on
 
     switch (mode) {
       case SystemMode.ECO:
-        // Core only
+        // Controlled by Workflow Engine mostly
         break;
       case SystemMode.BALANCED:
-        this.activeCategories.add('DEV');
-        this.activeCategories.add('SUP');
+        this.setSquadState('TEAM_DEV', true);
+        this.setSquadState('TEAM_CONTEXT', true);
         break;
       case SystemMode.HIGH:
-        this.activeCategories.add('DEV');
-        this.activeCategories.add('SUP');
-        this.activeCategories.add('MKT');
-        this.activeCategories.add('DATA');
+        this.setSquadState('TEAM_DEV', true);
+        this.setSquadState('TEAM_MKT', true);
+        this.setSquadState('TEAM_CONTEXT', true);
+        this.setSquadState('TEAM_OPTIMIZE', true);
         break;
       case SystemMode.ULTRA:
-        ROLES.forEach(r => this.activeCategories.add(r.prefix));
-        break;
-      case SystemMode.CUSTOM:
-        // Do not reset categories, keep what user selected
+        this.squads.forEach(s => this.setSquadState(s.id, true));
         break;
     }
-    this.refreshAgentStates();
-  }
-
-  private refreshAgentStates() {
-    this.swarm.forEach(agent => {
-      const shouldBeEnabled = this.activeCategories.has(agent.category);
-      
-      if (shouldBeEnabled && !agent.enabled) {
-        // Boot up
-        agent.enabled = true;
-        agent.status = AgentStatus.IDLE;
-        agent.ramUsage = 100 + Math.random() * 50; // Boot overhead
-      } else if (!shouldBeEnabled && agent.enabled) {
-        // Shut down
-        agent.enabled = false;
-        agent.status = AgentStatus.OFFLINE;
-        agent.ramUsage = 0; // Memory freed
-        agent.cpuUsage = 0;
-      }
-    });
   }
 
   public getAgents(): Agent[] {
     return this.swarm;
   }
 
-  // The "Tick" function - called by the main loop
   public tick() {
-    // Only update enabled agents
+    // Simulation Tick
     this.swarm.filter(a => a.enabled).forEach(agent => {
-      // Decay activity
-      if (agent.status === AgentStatus.WORKING && Math.random() > 0.95) {
-        agent.status = AgentStatus.IDLE;
-        agent.cpuUsage = 2 + Math.random() * 5;
-      }
-
-      // Random activation
-      if (agent.status === AgentStatus.IDLE && Math.random() > 0.98) {
-        agent.status = AgentStatus.THINKING;
-        agent.cpuUsage = 30 + Math.random() * 20;
-      }
-      
-      if (agent.status === AgentStatus.THINKING && Math.random() > 0.9) {
-        agent.status = AgentStatus.WORKING;
-        agent.cpuUsage = 60 + Math.random() * 30;
-      }
+       // Activity logic...
+       if (agent.status === AgentStatus.WORKING && Math.random() > 0.95) agent.status = AgentStatus.IDLE;
+       if (agent.status === AgentStatus.IDLE && Math.random() > 0.95) agent.status = AgentStatus.THINKING;
+       if (agent.status === AgentStatus.THINKING && Math.random() > 0.9) agent.status = AgentStatus.WORKING;
+       
+       if (agent.status !== AgentStatus.OFFLINE) {
+         agent.cpuUsage = agent.status === AgentStatus.WORKING ? 40 + Math.random() * 60 : 5 + Math.random() * 10;
+       }
     });
   }
 
@@ -143,7 +182,6 @@ class AgentSwarmOrchestrator {
   }
 
   public getTotalRam(): number {
-    // Returns total MB
     return this.swarm.reduce((acc, curr) => acc + curr.ramUsage, 0);
   }
 }

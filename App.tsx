@@ -4,66 +4,70 @@ import Dashboard from './components/Dashboard';
 import AgentOrchestrator from './components/AgentOrchestrator';
 import IntrospectionHub from './components/IntrospectionHub';
 import TerminalLog from './components/TerminalLog';
-import SystemControl from './components/SystemControl'; // New Import
-import { Agent, SystemMetrics, Project, SystemMode } from './types';
-import { MOCK_PROJECTS, SYSTEM_LOGS } from './constants';
+import SystemControl from './components/SystemControl'; 
+import { Agent, SystemMetrics, Project, SystemMode, AutonomousConfig, WorkflowStage } from './types';
+import { MOCK_PROJECTS, SYSTEM_LOGS, DEFAULT_AUTONOMY_CONFIG } from './constants';
 import { orchestrator } from './services/orchestrator';
 import { continuum } from './services/continuumMemory';
+import { workflowEngine } from './services/workflowEngine';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [autonomyConfig, setAutonomyConfig] = useState<AutonomousConfig>(DEFAULT_AUTONOMY_CONFIG);
+  
   const [metrics, setMetrics] = useState<SystemMetrics>({
     totalRamUsage: 0,
-    vramUsage: 1.2, // Base OS usage
+    vramUsage: 1.2, 
     activeAgents: 0,
     introspectionDepth: 32,
     awarenessScore: 85.0,
     fps: 60,
-    currentMode: SystemMode.ECO
+    currentMode: SystemMode.ECO,
+    tokenUsageToday: 0,
+    currentStage: WorkflowStage.IDLE
   });
+  
   const [logs, setLogs] = useState<string[]>(SYSTEM_LOGS);
 
   const handleModeChange = (mode: SystemMode) => {
-    // This allows the SystemControl component to update the parent state
     setMetrics(prev => ({ ...prev, currentMode: mode }));
   };
 
   // Real Simulation Loop
   useEffect(() => {
     const interval = setInterval(() => {
-      // 1. Tick the Swarm Logic
+      // 1. Tick Workflow Engine (Intent -> Plan -> Execute)
+      workflowEngine.tick();
+
+      // 2. Tick Swarm Logic (Wake up/Sleep agents based on Workflow)
       orchestrator.tick();
       const currentAgents = orchestrator.getAgents();
       
-      // 2. Calculate Real Metrics based on Agent Activity
+      // 3. Metrics Calculation
       const activeCount = orchestrator.getActiveCount();
-      const ramTotal = orchestrator.getTotalRam() / 1024; // Convert MB to GB
+      const ramTotal = orchestrator.getTotalRam() / 1024; 
       
-      // 3. VRAM simulation (RTX 3050 4GB Cap)
-      // Visual agents consume more VRAM
-      // Calculate active visual agents (MKT category usually has image gen)
       const visualAgents = currentAgents.filter(a => a.category === 'MARKETING' && a.enabled).length;
       const standardAgents = activeCount - visualAgents;
-      
-      // Formula: Base OS (1.2) + Standard (15MB each) + Visual (150MB each)
       const visualLoad = (visualAgents * 0.15) + (standardAgents * 0.015); 
-      const baseVram = 1.2; // Windows Idle
+      const baseVram = 1.2; 
       const totalVram = Math.min(4.0, baseVram + visualLoad);
 
-      setAgents([...currentAgents]); // Force re-render with new state
+      setAgents([...currentAgents]); 
       
       setMetrics(prev => ({
         ...prev,
         activeAgents: activeCount,
-        totalRamUsage: 4.5 + ramTotal, // 4.5GB Base OS + Agents
+        totalRamUsage: 4.5 + ramTotal,
         vramUsage: totalVram,
-        // Awareness score fluctuates based on memory density
         awarenessScore: Math.min(99.9, 85 + (continuum.getStats().archivedNodes * 0.1)),
-        fps: Math.max(30, 144 - (activeCount * 0.5)) // Performance impact
+        fps: Math.max(30, 144 - (activeCount * 0.5)),
+        tokenUsageToday: workflowEngine.getTokenUsage(),
+        currentStage: workflowEngine.getStage()
       }));
 
-    }, 1000); // 1 Second tick rate
+    }, 1000); 
 
     return () => clearInterval(interval);
   }, []);
@@ -73,9 +77,16 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard metrics={metrics} projects={MOCK_PROJECTS} />;
       case 'system_control':
-        return <SystemControl metrics={metrics} setMode={handleModeChange} />;
+        return (
+          <SystemControl 
+            metrics={metrics} 
+            setMode={handleModeChange} 
+            autonomyConfig={autonomyConfig}
+            setAutonomyConfig={setAutonomyConfig}
+          />
+        );
       case 'orchestrator':
-        return <AgentOrchestrator agents={agents} />;
+        return <AgentOrchestrator agents={agents} currentStage={metrics.currentStage} />;
       case 'introspection':
         return <IntrospectionHub />;
       case 'terminal':
