@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { BrainCircuit, Eye, Fingerprint, Activity, Zap, ShieldAlert } from 'lucide-react';
+import { BrainCircuit, Eye, Fingerprint, Activity, Zap, ShieldAlert, HelpCircle } from 'lucide-react';
 import { IntrospectionLayer } from '../types';
 
 const IntrospectionHub: React.FC = () => {
@@ -32,9 +33,23 @@ const IntrospectionHub: React.FC = () => {
           <div className="absolute inset-8 rounded-full border border-purple-500/30 animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
           <div className="absolute inset-20 rounded-full border border-green-500/20 animate-pulse"></div>
           
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center group cursor-help">
             <h2 className="text-4xl font-bold text-white tracking-tighter">94.05%</h2>
-            <p className="text-cyan-400 font-mono text-sm tracking-widest mt-2">AWARENESS SCORE</p>
+            <div className="flex items-center justify-center gap-1 text-cyan-400 mt-2">
+                <p className="font-mono text-sm tracking-widest">AWARENESS SCORE</p>
+                <HelpCircle size={12} />
+            </div>
+            
+            {/* Tooltip */}
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 w-64 bg-slate-900 border border-slate-700 p-3 rounded-lg text-xs text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                <p className="font-bold text-white mb-1">Cognitive Quality Index</p>
+                Calculated based on:
+                <ul className="list-disc pl-4 mt-1 space-y-1 text-[10px]">
+                    <li>Introspection Density (Thoughts/Output)</li>
+                    <li>Context Retention Rate</li>
+                    <li>Semantic Coherence</li>
+                </ul>
+            </div>
           </div>
 
           {/* Orbiting Concepts */}

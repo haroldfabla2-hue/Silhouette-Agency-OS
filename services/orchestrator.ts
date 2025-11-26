@@ -278,19 +278,30 @@ class AgentSwarmOrchestrator {
   }
 
   private applyMode(mode: SystemMode) {
-    if (mode === SystemMode.CUSTOM || mode === SystemMode.PRESET) return;
-
-    this.squads.forEach(s => {
-        if (s.category !== 'CORE') this.setSquadState(s.id, false);
-    });
+    // Reset non-core first
+    if (mode !== SystemMode.CUSTOM && mode !== SystemMode.PRESET) {
+        this.squads.forEach(s => {
+            if (s.category !== 'CORE') this.setSquadState(s.id, false);
+        });
+    }
 
     switch (mode) {
       case SystemMode.ECO:
-        // Handled by workflow engine logic (Minimal)
+        // Activate only 3 squads per active category (handled in logic or implicitly here)
+        // For baseline ECO, we just want CORE + Minimal OPS
+        this.squads.forEach(s => {
+            if (s.category === 'CORE' || (s.category === 'OPS' && Math.random() > 0.8)) { // Deterministic first 3 logic moved to activation
+                 // Handled by workflow engine dynamic activation usually
+            }
+        });
+        // Force deterministic ECO baseline: First 3 squads of DEV/OPS
+        this.squads.filter(s => s.category === 'DEV').slice(0, 3).forEach(s => this.setSquadState(s.id, true));
+        this.squads.filter(s => s.category === 'OPS').slice(0, 3).forEach(s => this.setSquadState(s.id, true));
         break;
+        
       case SystemMode.BALANCED:
         this.squads.forEach(s => {
-            if (['DEV', 'DATA', 'OPS'].includes(s.category)) {
+            if (['DEV', 'DATA', 'OPS', 'MARKETING'].includes(s.category)) {
                // Activate top 50%
                const catSquads = this.squads.filter(sq => sq.category === s.category);
                const idx = catSquads.findIndex(sq => sq.id === s.id);
@@ -298,12 +309,16 @@ class AgentSwarmOrchestrator {
             }
         });
         break;
+
       case SystemMode.HIGH:
         this.squads.forEach(s => {
+            // Activate almost everything except very niche science if not needed
             if (s.category !== 'SCIENCE') this.setSquadState(s.id, true);
         });
         break;
+
       case SystemMode.ULTRA:
+        // ACTIVATE EVERYTHING
         this.squads.forEach(s => this.setSquadState(s.id, true));
         break;
     }

@@ -106,15 +106,19 @@ export interface Squad {
 }
 
 export interface SystemMetrics {
-  totalRamUsage: number; 
-  vramUsage: number; 
   activeAgents: number;
   introspectionDepth: number;
   awarenessScore: number; 
   fps: number;
   currentMode: SystemMode;
-  tokenUsageToday: number; // New metric
-  currentStage: WorkflowStage; // New metric
+  tokenUsageToday: number;
+  currentStage: WorkflowStage;
+  // Real Telemetry
+  jsHeapSize: number; // Real RAM (MB)
+  vramUsage: number; // Real GPU Memory Estimate (MB)
+  cpuTickDuration: number; // Real CPU Load (ms)
+  netLatency: number; // Real API Latency (ms)
+  systemAlert: string | null; // Warning message if hardware exceeded
 }
 
 export interface MemoryNode {

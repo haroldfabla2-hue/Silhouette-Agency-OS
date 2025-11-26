@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { SystemMode, SystemMetrics, AutonomousConfig, BusinessType, AgentCategory } from '../types';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
-import { ShieldCheck, ShieldAlert, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive } from 'lucide-react';
 
 interface SystemControlProps {
   metrics: SystemMetrics;
@@ -60,7 +60,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
         {/* 1. Power Levels */}
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
-            <Zap className="text-yellow-400" /> System Power & Hardware
+            <Zap className="text-yellow-400" /> System Power & Hardware (Real Telemetry)
           </h2>
           <div className="grid grid-cols-4 gap-3 mb-4">
              {[SystemMode.ECO, SystemMode.BALANCED, SystemMode.HIGH, SystemMode.ULTRA].map(mode => (
@@ -78,17 +78,40 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
              ))}
           </div>
           
-          {/* VRAM Visualizer */}
-          <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
-             <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-400">Projected VRAM Load (RTX 3050)</span>
-                <span className={metrics.vramUsage > 3.5 ? 'text-red-500' : 'text-cyan-400'}>{metrics.vramUsage.toFixed(2)} GB / 4.00 GB</span>
+          {/* Real RAM Visualizer */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
+                <div className="flex items-center gap-2 mb-2">
+                   <HardDrive size={14} className="text-yellow-400" />
+                   <span className="text-xs text-slate-400 font-bold">APP MEMORY (HEAP)</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                   <span className="text-slate-500">Allocated RAM</span>
+                   <span className="text-white font-mono">{metrics.jsHeapSize.toFixed(1)} MB</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                   <div 
+                      className="h-full bg-yellow-500 transition-all duration-500"
+                      style={{ width: `${Math.min(100, (metrics.jsHeapSize / 1000) * 100)}%` }}
+                   />
+                </div>
              </div>
-             <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                   className={`h-full transition-all duration-500 ${metrics.vramUsage > 3.5 ? 'bg-red-500' : 'bg-cyan-500'}`}
-                   style={{ width: `${(metrics.vramUsage / 4.0) * 100}%` }}
-                />
+
+             <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
+                <div className="flex items-center gap-2 mb-2">
+                   <Cpu size={14} className="text-purple-400" />
+                   <span className="text-xs text-slate-400 font-bold">LOGIC LOAD (CPU)</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                   <span className="text-slate-500">Loop Latency</span>
+                   <span className="text-white font-mono">{metrics.cpuTickDuration.toFixed(2)} ms</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                   <div 
+                      className={`h-full transition-all duration-500 ${metrics.cpuTickDuration > 50 ? 'bg-red-500' : 'bg-purple-500'}`}
+                      style={{ width: `${Math.min(100, metrics.cpuTickDuration * 2)}%` }}
+                   />
+                </div>
              </div>
           </div>
         </div>
