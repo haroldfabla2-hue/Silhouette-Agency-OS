@@ -1,9 +1,9 @@
+
 import React, { useState } from 'react';
-import { SystemMode, SystemMetrics, AutonomousConfig } from '../types';
+import { SystemMode, SystemMetrics, AutonomousConfig, BusinessType, AgentCategory } from '../types';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
-import { ShieldCheck, ShieldAlert, Cpu, Zap, Power, Server, Clock, Coins, RotateCcw } from 'lucide-react';
-import { DEFAULT_AUTONOMY_CONFIG } from '../constants';
+import { ShieldCheck, ShieldAlert, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock } from 'lucide-react';
 
 interface SystemControlProps {
   metrics: SystemMetrics;
@@ -18,98 +18,169 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
 
   // Local state for inputs before applying
   const [tempConfig, setTempConfig] = useState(autonomyConfig);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessType>('GENERAL');
 
   const applyConfig = () => {
     setAutonomyConfig(tempConfig);
     workflowEngine.updateConfig(tempConfig);
   };
 
-  const handleToggle = (id: string) => {
-    if (id === 'CORE') return; 
-    const isEnabled = activeCats.includes(id);
-    orchestrator.setCustomToggle(id, !isEnabled);
+  const handleBusinessChange = (type: BusinessType) => {
+      setSelectedBusiness(type);
+      orchestrator.setBusinessPreset(type);
+      setMode(SystemMode.PRESET);
   };
 
+  const toggleDivision = (cat: AgentCategory) => {
+      if (cat === 'CORE') return; // Protected
+      const isEnabled = activeCats.includes(cat);
+      orchestrator.toggleCategory(cat, !isEnabled);
+      setMode(SystemMode.CUSTOM);
+  };
+
+  // Business Card Configuration
+  const businessTypes: { id: BusinessType; icon: any; label: string; desc: string }[] = [
+      { id: 'MARKETING_AGENCY', icon: Briefcase, label: 'Creative Agency', desc: 'Activates Marketing, Content, and Growth squads.' },
+      { id: 'LAW_FIRM', icon: Scale, label: 'Legal Firm', desc: 'Prioritizes Compliance, Contracts, and Audit squads.' },
+      { id: 'DEV_SHOP', icon: Terminal, label: 'Software House', desc: 'Maximum Developer and DevOps resource allocation.' },
+      { id: 'FINTECH', icon: Coins, label: 'FinTech Corp', desc: 'Focus on Financial Analysis and Data Security.' },
+      { id: 'RESEARCH_LAB', icon: FlaskConical, label: 'R&D Laboratory', desc: 'Enables Science and Data Mining divisions.' },
+      { id: 'CYBER_DEFENSE', icon: Lock, label: 'Cyber Security', desc: 'Activates Red Team, Blue Team and Encryption.' },
+  ];
+
+  // Category Toggle Configuration
+  const categories: AgentCategory[] = ['DEV', 'MARKETING', 'DATA', 'CYBERSEC', 'LEGAL', 'FINANCE', 'SCIENCE', 'OPS'];
+
   return (
-    <div className="h-[calc(100vh-2rem)] flex gap-6">
+    <div className="h-[calc(100vh-2rem)] flex gap-6 overflow-hidden">
       
-      {/* Left Column: Power & Hardware */}
-      <div className="flex-1 flex flex-col gap-6">
+      {/* Left Column: Configuration & Adaptation */}
+      <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
         
-        {/* Power Level Selector */}
+        {/* 1. Power Levels */}
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
-            <Zap className="text-yellow-400" /> System Power Configuration
+            <Zap className="text-yellow-400" /> System Power & Hardware
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-4 gap-3 mb-4">
              {[SystemMode.ECO, SystemMode.BALANCED, SystemMode.HIGH, SystemMode.ULTRA].map(mode => (
                <button
                   key={mode}
                   onClick={() => { orchestrator.setMode(mode); setMode(mode); }}
-                  className={`p-4 rounded border text-left transition-all ${
+                  className={`p-3 rounded border text-center transition-all ${
                     currentMode === mode 
                       ? 'bg-cyan-900/30 border-cyan-500 text-white' 
                       : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-600'
                   }`}
                >
-                 <div className="font-bold text-sm mb-1">{mode}</div>
-                 <div className="text-[10px] font-mono opacity-70">
-                   {mode === 'ECO' ? 'Core Only (Safe)' : mode === 'ULTRA' ? 'Full Swarm (Max Load)' : 'Standard Operation'}
-                 </div>
+                 <div className="font-bold text-xs">{mode}</div>
                </button>
              ))}
           </div>
-        </div>
-
-        {/* Hardware Monitor */}
-        <div className="glass-panel rounded-xl p-6 flex-1 bg-slate-900/80 border-slate-800">
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <h4 className="text-white font-bold flex items-center gap-2">
-                <Cpu size={18} className="text-cyan-400" /> 
-                RTX 3050 Load
-              </h4>
-            </div>
-            <div className="text-right">
-              <span className={`text-2xl font-mono font-bold ${metrics.vramUsage > 3.5 ? 'text-red-500' : 'text-green-400'}`}>
-                {metrics.vramUsage.toFixed(2)} GB
-              </span>
-            </div>
-          </div>
-          <div className="h-4 bg-slate-800 rounded-full overflow-hidden relative mb-6">
-            <div 
-              className={`h-full transition-all duration-700 ${metrics.vramUsage > 3.5 ? 'bg-red-500' : 'bg-cyan-500'}`}
-              style={{ width: `${(metrics.vramUsage / 4.0) * 100}%` }}
-            />
-          </div>
           
-          <div className="grid grid-cols-2 gap-4">
-             <div className="bg-black/40 p-3 rounded">
-                <p className="text-xs text-slate-500">Active Squads</p>
-                <p className="text-lg text-white font-mono">{orchestrator.getSquads().filter(s => s.active).length}</p>
+          {/* VRAM Visualizer */}
+          <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
+             <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-400">Projected VRAM Load (RTX 3050)</span>
+                <span className={metrics.vramUsage > 3.5 ? 'text-red-500' : 'text-cyan-400'}>{metrics.vramUsage.toFixed(2)} GB / 4.00 GB</span>
              </div>
-             <div className="bg-black/40 p-3 rounded">
-                <p className="text-xs text-slate-500">Token Usage</p>
-                <p className="text-lg text-white font-mono">{metrics.tokenUsageToday.toLocaleString()}</p>
+             <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                   className={`h-full transition-all duration-500 ${metrics.vramUsage > 3.5 ? 'bg-red-500' : 'bg-cyan-500'}`}
+                   style={{ width: `${(metrics.vramUsage / 4.0) * 100}%` }}
+                />
              </div>
           </div>
         </div>
 
+        {/* 2. Business Adaptation (New) */}
+        <div className="glass-panel rounded-xl p-6">
+           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
+              <Building2 className="text-purple-400" /> Business Identity Adaptation
+           </h2>
+           <p className="text-xs text-slate-400 mb-4">
+              Select a business preset to automatically activate the most relevant specialized squads and hibernate unnecessary resources.
+           </p>
+           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {businessTypes.map(biz => {
+                  const Icon = biz.icon;
+                  const isActive = currentMode === SystemMode.PRESET && selectedBusiness === biz.id;
+                  return (
+                      <button
+                        key={biz.id}
+                        onClick={() => handleBusinessChange(biz.id)}
+                        className={`p-4 rounded-lg border text-left transition-all hover:bg-slate-800/50 ${
+                            isActive 
+                            ? 'bg-purple-900/20 border-purple-500 ring-1 ring-purple-500/50' 
+                            : 'bg-slate-950/50 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                          <div className={`mb-2 ${isActive ? 'text-purple-400' : 'text-slate-500'}`}>
+                              <Icon size={20} />
+                          </div>
+                          <h4 className={`text-sm font-bold mb-1 ${isActive ? 'text-white' : 'text-slate-300'}`}>{biz.label}</h4>
+                          <p className="text-[10px] text-slate-500 leading-tight">{biz.desc}</p>
+                      </button>
+                  );
+              })}
+           </div>
+        </div>
+
+        {/* 3. Granular Squad Control (New) */}
+        <div className="glass-panel rounded-xl p-6">
+           <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                  <ShieldCheck className="text-green-400" /> Division Control
+              </h2>
+              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">CUSTOM MODE</span>
+           </div>
+           
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Core is locked */}
+              <div className="p-3 bg-slate-900/80 border border-cyan-900/30 rounded flex items-center justify-between opacity-70 cursor-not-allowed">
+                  <span className="text-xs font-bold text-cyan-400">CORE SYSTEM</span>
+                  <div className="w-8 h-4 bg-cyan-900/50 rounded-full relative">
+                      <div className="absolute right-1 top-1 w-2 h-2 bg-cyan-500 rounded-full" />
+                  </div>
+              </div>
+              
+              {/* Toggable Categories */}
+              {categories.map(cat => {
+                  const isEnabled = activeCats.includes(cat);
+                  return (
+                      <button 
+                        key={cat}
+                        onClick={() => toggleDivision(cat)}
+                        className={`p-3 rounded border flex items-center justify-between transition-all ${
+                            isEnabled 
+                             ? 'bg-slate-900 border-green-500/50' 
+                             : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                          <span className={`text-xs font-bold ${isEnabled ? 'text-white' : 'text-slate-500'}`}>{cat}</span>
+                          <div className={`w-8 h-4 rounded-full relative transition-colors ${isEnabled ? 'bg-green-900/50' : 'bg-slate-800'}`}>
+                              <div className={`absolute top-1 w-2 h-2 rounded-full transition-all ${isEnabled ? 'bg-green-400 right-1' : 'bg-slate-600 left-1'}`} />
+                          </div>
+                      </button>
+                  );
+              })}
+           </div>
+        </div>
       </div>
 
-      {/* Right Column: Autonomy & Limits */}
-      <div className="w-96 glass-panel rounded-xl flex flex-col border-l border-cyan-900/30">
+      {/* Right Column: Autonomy Config */}
+      <div className="w-80 glass-panel rounded-xl flex flex-col border-l border-cyan-900/30 flex-shrink-0">
         <div className="p-6 border-b border-cyan-900/30 bg-slate-900/50">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <RotateCcw className="text-purple-400" size={18} />
-            Autonomous Operations
+            Autonomous Ops
           </h3>
           <p className="text-xs text-slate-500 mt-1">
             Configure self-healing loops and safety constraints.
           </p>
         </div>
 
-        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
           
           {/* Master Toggle */}
           <div className="flex items-center justify-between p-4 bg-purple-900/10 border border-purple-500/30 rounded-xl">
@@ -140,7 +211,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
                   className="rounded bg-slate-800 border-slate-600 text-cyan-500"
                />
                <span className="flex items-center gap-2">
-                 Continuous Context Loop (24/7)
+                 Continuous Context Loop
                  {tempConfig.mode24_7 && <span className="text-[10px] bg-red-900/50 text-red-400 px-1 rounded">HEAVY</span>}
                </span>
              </label>
@@ -163,19 +234,6 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
                 onChange={(e) => setTempConfig({...tempConfig, maxDailyTokens: parseInt(e.target.value)})}
                 className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-sm"
               />
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500 font-bold uppercase flex items-center gap-2 mb-2">
-                <Clock size={12} /> Max Runtime (Hours)
-              </label>
-              <input 
-                type="number" 
-                value={tempConfig.maxRunTimeHours}
-                onChange={(e) => setTempConfig({...tempConfig, maxRunTimeHours: parseInt(e.target.value)})}
-                className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-sm"
-              />
-              <p className="text-[10px] text-slate-600 mt-1">Set to 0 for infinite.</p>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
-import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory } from "../types";
+
+import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory, BusinessType } from "../types";
 import { INITIAL_AGENTS } from "../constants";
 
 // The "Swarm" Manager V4.0 (Enterprise Edition)
@@ -8,6 +9,7 @@ class AgentSwarmOrchestrator {
   private swarm: Agent[] = [];
   private squads: Squad[] = [];
   private currentMode: SystemMode = SystemMode.ECO;
+  private currentBusinessPreset: BusinessType = 'GENERAL';
 
   constructor() {
     this.initializeSwarm();
@@ -15,20 +17,22 @@ class AgentSwarmOrchestrator {
   }
 
   private initializeSwarm() {
-    // 1. Load the Core "Hero" Squads first (Core, Strategy, Context, Optimize)
-    // These are critical for the OS logic.
+    // 1. Load the Core "Hero" Squads first (Core, Strategy, Context, Optimize, QA, Remediation)
     this.swarm = [...INITIAL_AGENTS];
     
+    // Core Logic Squads (Always needed for OS function)
     const coreSquads: Squad[] = [
         { id: 'TEAM_CORE', name: 'Orchestration Command', leaderId: 'core-01', members: ['core-01', 'core-02'], category: 'CORE', active: true },
         { id: 'TEAM_STRATEGY', name: 'Strategic Planning HQ', leaderId: 'strat-01', members: ['strat-01'], category: 'OPS', active: false },
         { id: 'TEAM_CONTEXT', name: 'Context Transcendence', leaderId: 'ctx-01', members: ['ctx-01', 'ctx-02'], category: 'DATA', active: false },
-        { id: 'TEAM_OPTIMIZE', name: 'Quality Assurance & Opt', leaderId: 'opt-01', members: ['opt-01', 'mon-01'], category: 'OPS', active: false }
+        { id: 'TEAM_OPTIMIZE', name: 'Workflow Optimizer', leaderId: 'opt-01', members: ['opt-01', 'mon-01'], category: 'OPS', active: false },
+        { id: 'TEAM_QA', name: 'The Inquisitors (QA)', leaderId: 'qa-01', members: ['qa-01', 'qa-02'], category: 'OPS', active: false },
+        { id: 'TEAM_FIX', name: 'The Mechanics (Fix)', leaderId: 'fix-01', members: ['fix-01', 'fix-02'], category: 'DEV', active: false }
     ];
     this.squads.push(...coreSquads);
 
     // 2. Procedurally Generate the remaining Professional Squads to reach 131 total
-    // We need 127 more teams.
+    // We need approx 125 more teams.
     const TOTAL_SQUADS = 131;
     const SQUADS_TO_GENERATE = TOTAL_SQUADS - coreSquads.length;
 
@@ -78,11 +82,11 @@ class AgentSwarmOrchestrator {
 
     const suffixes = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Prime', 'Nexus', 'Vanguard', 'Squad', 'Unit', 'Force', 'Hive', 'Cell'];
 
-    let squadCounter = 5; // Start after the 4 core squads
+    let squadCounter = coreSquads.length + 1; 
     let globalAgentId = 200;
 
     for (let i = 0; i < SQUADS_TO_GENERATE; i++) {
-        // Pick a domain using round-robin or random distribution
+        // Pick a domain using round-robin
         const domain = domains[i % domains.length];
         
         // Generate Unique Name
@@ -155,39 +159,31 @@ class AgentSwarmOrchestrator {
   }
 
   public activateSquadsForStage(stage: WorkflowStage) {
-    // Advanced Mapping: Maps Workflow Stages to Professional Domains
+    if (this.currentMode === SystemMode.ULTRA || this.currentMode === SystemMode.CUSTOM || this.currentMode === SystemMode.PRESET) return;
+
+    // Default stage activation for ECO/BALANCED/HIGH
     const mapping: Record<WorkflowStage, AgentCategory[]> = {
       [WorkflowStage.IDLE]: ['CORE'],
       [WorkflowStage.INTENT]: ['CORE', 'DATA'], 
       [WorkflowStage.PLANNING]: ['OPS', 'LEGAL', 'FINANCE'], 
       [WorkflowStage.EXECUTION]: ['DEV', 'MARKETING', 'CYBERSEC', 'SCIENCE'], 
+      [WorkflowStage.QA_AUDIT]: ['OPS', 'CYBERSEC', 'LEGAL'],
+      [WorkflowStage.REMEDIATION]: ['DEV', 'DATA'],
       [WorkflowStage.OPTIMIZATION]: ['OPS', 'DATA', 'CYBERSEC'], 
       [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE']
     };
 
     const activeCategories = mapping[stage] || [];
     
-    if (this.currentMode === SystemMode.ULTRA) return; // Ultra keeps everything on
-
     this.squads.forEach(squad => {
-      // Core is always active
       if (squad.category === 'CORE') {
         this.setSquadState(squad.id, true);
         return;
       }
 
-      // Logic for ECO/BALANCED/HIGH modes
       let shouldBeActive = false;
-
-      if (this.currentMode === SystemMode.CUSTOM) {
-          // Keep current state
-          shouldBeActive = squad.active;
-      } else if (activeCategories.includes(squad.category)) {
-          // If the squad belongs to the active category for this stage
+      if (activeCategories.includes(squad.category)) {
           if (this.currentMode === SystemMode.ECO) {
-              // REAL LOGIC (No Randomness):
-              // In Eco, strictly activate only the top 3 squads of the active category
-              // to guarantee VRAM safety and stable metrics.
               const catSquads = this.squads.filter(s => s.category === squad.category);
               const squadIndex = catSquads.findIndex(s => s.id === squad.id);
               shouldBeActive = squadIndex < 3; 
@@ -195,33 +191,76 @@ class AgentSwarmOrchestrator {
               shouldBeActive = true;
           }
       }
-
       this.setSquadState(squad.id, shouldBeActive);
     });
   }
 
   private setSquadState(squadId: string, enabled: boolean) {
     const squad = this.squads.find(s => s.id === squadId);
-    if (squad) {
-      squad.active = enabled;
-      this.swarm.filter(a => a.teamId === squadId).forEach(agent => {
-        agent.enabled = enabled;
-        if (!enabled) {
-            agent.status = AgentStatus.OFFLINE;
-            agent.ramUsage = 0;
-            agent.cpuUsage = 0;
-        } else {
-            // Keep some fluctuation in CPU/RAM to reflect thread activity
-            agent.status = Math.random() > 0.5 ? AgentStatus.IDLE : AgentStatus.THINKING;
-            agent.ramUsage = 50 + Math.random() * 50; 
-        }
-      });
+    if (!squad) return;
+
+    // PROTECTION: CORE Squads can never be disabled manually
+    if (squad.category === 'CORE' && !enabled) {
+        // Force Enable if trying to disable
+        enabled = true;
     }
+
+    squad.active = enabled;
+    this.swarm.filter(a => a.teamId === squadId).forEach(agent => {
+      agent.enabled = enabled;
+      if (!enabled) {
+          agent.status = AgentStatus.OFFLINE;
+          agent.ramUsage = 0;
+          agent.cpuUsage = 0;
+      } else {
+          agent.status = Math.random() > 0.5 ? AgentStatus.IDLE : AgentStatus.THINKING;
+          agent.ramUsage = 50 + Math.random() * 50; 
+      }
+    });
   }
 
   public setMode(mode: SystemMode) {
     this.currentMode = mode;
     this.applyMode(mode);
+  }
+
+  public setBusinessPreset(preset: BusinessType) {
+    this.currentMode = SystemMode.PRESET;
+    this.currentBusinessPreset = preset;
+    
+    // Define Category Mapping for Businesses
+    const businessMap: Record<BusinessType, AgentCategory[]> = {
+        'GENERAL': ['CORE', 'DEV', 'DATA', 'OPS', 'MARKETING', 'LEGAL', 'FINANCE', 'CYBERSEC'], // All Balanced
+        'MARKETING_AGENCY': ['CORE', 'MARKETING', 'DATA', 'OPS', 'DEV'],
+        'LAW_FIRM': ['CORE', 'LEGAL', 'OPS', 'DATA', 'CYBERSEC'],
+        'FINTECH': ['CORE', 'FINANCE', 'DATA', 'LEGAL', 'DEV'],
+        'DEV_SHOP': ['CORE', 'DEV', 'CYBERSEC', 'OPS', 'DATA'],
+        'RESEARCH_LAB': ['CORE', 'SCIENCE', 'DATA', 'DEV'],
+        'CYBER_DEFENSE': ['CORE', 'CYBERSEC', 'DEV', 'OPS', 'LEGAL']
+    };
+
+    const targetCategories = businessMap[preset];
+
+    this.squads.forEach(s => {
+        if (s.category === 'CORE') {
+            this.setSquadState(s.id, true);
+        } else {
+            // Activate if category matches, otherwise hibernate to save resources
+            this.setSquadState(s.id, targetCategories.includes(s.category));
+        }
+    });
+  }
+
+  public toggleCategory(category: AgentCategory, enabled: boolean) {
+      this.currentMode = SystemMode.CUSTOM;
+      // Cannot disable CORE
+      if (category === 'CORE') return;
+
+      this.squads.forEach(s => {
+          if (s.category === category) {
+              this.setSquadState(s.id, enabled);
+          }
+      });
   }
 
   public setCustomToggle(squadId: string, enabled: boolean) {
@@ -230,7 +269,6 @@ class AgentSwarmOrchestrator {
   }
 
   public getActiveCategories(): string[] {
-    // Returns unique categories of active squads
     const cats = new Set(this.squads.filter(s => s.active).map(s => s.category));
     return Array.from(cats);
   }
@@ -240,19 +278,19 @@ class AgentSwarmOrchestrator {
   }
 
   private applyMode(mode: SystemMode) {
-    // Reset all non-core
+    if (mode === SystemMode.CUSTOM || mode === SystemMode.PRESET) return;
+
     this.squads.forEach(s => {
         if (s.category !== 'CORE') this.setSquadState(s.id, false);
     });
 
     switch (mode) {
       case SystemMode.ECO:
-        // Handled by workflow engine tick (Deterministic)
+        // Handled by workflow engine logic (Minimal)
         break;
       case SystemMode.BALANCED:
-        // Activate essential categories deterministically
         this.squads.forEach(s => {
-            if (['DEV', 'DATA'].includes(s.category)) {
+            if (['DEV', 'DATA', 'OPS'].includes(s.category)) {
                // Activate top 50%
                const catSquads = this.squads.filter(sq => sq.category === s.category);
                const idx = catSquads.findIndex(sq => sq.id === s.id);
@@ -261,13 +299,11 @@ class AgentSwarmOrchestrator {
         });
         break;
       case SystemMode.HIGH:
-        // Activate most categories
         this.squads.forEach(s => {
-            if (s.category !== 'SCIENCE' && s.category !== 'FINANCE') this.setSquadState(s.id, true);
+            if (s.category !== 'SCIENCE') this.setSquadState(s.id, true);
         });
         break;
       case SystemMode.ULTRA:
-        // ALL HANDS ON DECK
         this.squads.forEach(s => this.setSquadState(s.id, true));
         break;
     }
@@ -278,7 +314,6 @@ class AgentSwarmOrchestrator {
   }
 
   public tick() {
-    // Simulation Tick for metrics (CPU/RAM fluctuation is real in any system)
     this.swarm.filter(a => a.enabled).forEach(agent => {
        if (agent.status === AgentStatus.WORKING && Math.random() > 0.98) agent.status = AgentStatus.IDLE;
        if (agent.status === AgentStatus.IDLE && Math.random() > 0.95) agent.status = AgentStatus.THINKING;

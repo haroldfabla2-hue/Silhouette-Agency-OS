@@ -1,3 +1,4 @@
+
 // Framework Enums
 export enum AgentStatus {
   IDLE = 'IDLE',
@@ -16,6 +17,8 @@ export enum WorkflowStage {
   INTENT = 'INTENT_ANALYSIS',
   PLANNING = 'STRATEGIC_PLANNING',
   EXECUTION = 'EXECUTION_SWARM',
+  QA_AUDIT = 'QUALITY_ASSURANCE_AUDIT',
+  REMEDIATION = 'ERROR_REMEDIATION',
   OPTIMIZATION = 'AUTO_OPTIMIZATION',
   ARCHIVAL = 'CONTEXT_ARCHIVAL',
   IDLE = 'SYSTEM_IDLE'
@@ -42,8 +45,18 @@ export enum SystemMode {
   BALANCED = 'BALANCED',  // Level 2: Core + Dev
   HIGH = 'HIGH',          // Level 3: Most teams
   ULTRA = 'ULTRA',        // Level 4: All 131 Agents
-  CUSTOM = 'CUSTOM'       // Level 5: Manual
+  CUSTOM = 'CUSTOM',      // Level 5: Manual
+  PRESET = 'PRESET'       // Business Template
 }
+
+export type BusinessType = 
+  | 'GENERAL' 
+  | 'MARKETING_AGENCY' 
+  | 'LAW_FIRM' 
+  | 'FINTECH' 
+  | 'DEV_SHOP' 
+  | 'RESEARCH_LAB'
+  | 'CYBER_DEFENSE';
 
 // Specialized Domains for the 131 Teams
 export type AgentCategory = 
@@ -131,4 +144,11 @@ export interface Project {
   status: 'planning' | 'active' | 'generating' | 'completed';
   progress: number;
   assignedAgents: string[];
+}
+
+export interface QualityReport {
+  score: number; // 0-100
+  passed: boolean;
+  criticalFailures: string[];
+  suggestions: string[];
 }
