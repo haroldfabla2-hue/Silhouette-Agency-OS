@@ -45,6 +45,19 @@ export enum SystemMode {
   CUSTOM = 'CUSTOM'       // Level 5: Manual
 }
 
+// Specialized Domains for the 131 Teams
+export type AgentCategory = 
+  | 'CORE' 
+  | 'DEV' 
+  | 'MARKETING' 
+  | 'DATA' 
+  | 'SUPPORT' 
+  | 'CYBERSEC' 
+  | 'LEGAL' 
+  | 'FINANCE' 
+  | 'SCIENCE' 
+  | 'OPS';
+
 // Data Structures
 export interface AutonomousConfig {
   enabled: boolean;
@@ -58,7 +71,7 @@ export interface Agent {
   id: string;
   name: string;
   teamId: string; // Grouping ID
-  category: 'CORE' | 'DEV' | 'MARKETING' | 'DATA' | 'SUPPORT' | 'SPEC';
+  category: AgentCategory;
   roleType: AgentRoleType; // Leader or Worker
   role: string; // Specific job title
   status: AgentStatus;
@@ -75,7 +88,7 @@ export interface Squad {
   name: string;
   leaderId: string;
   members: string[];
-  category: string;
+  category: AgentCategory;
   active: boolean;
 }
 

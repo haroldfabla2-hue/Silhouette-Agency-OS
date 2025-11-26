@@ -33,7 +33,7 @@ export const INITIAL_AGENTS: Agent[] = [
     id: 'strat-01', 
     name: 'Strategos_X', 
     teamId: 'TEAM_STRATEGY',
-    category: 'SPEC', 
+    category: 'OPS', 
     roleType: AgentRoleType.LEADER,
     role: 'Strategic Planner', 
     status: AgentStatus.IDLE, 

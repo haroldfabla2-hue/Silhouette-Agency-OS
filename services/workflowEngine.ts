@@ -10,6 +10,14 @@ class WorkflowEngine {
   private config: AutonomousConfig;
   private tokenUsage: number = 0;
   private startTime: number = Date.now();
+  
+  // Data Pipeline to pass results between stages
+  private pipelineData: {
+    intent?: string;
+    plan?: string;
+    draftResult?: string; // Result from EXECUTION
+    finalResult?: string; // Result from OPTIMIZATION
+  } = {};
 
   constructor() {
     // Default config, will be overwritten by App.tsx
@@ -50,13 +58,13 @@ class WorkflowEngine {
       case WorkflowStage.IDLE:
         // In 24/7 mode, automatically restart pipeline
         if (this.config.mode24_7 || Math.random() > 0.9) {
-          this.transitionTo(WorkflowStage.INTENT);
+          this.startNewCycle();
         }
         break;
 
       case WorkflowStage.INTENT:
         // Intent Analyzer Agent works here
-        this.simulateWork(2000, WorkflowStage.PLANNING); // Simulate Prompt Engineering
+        this.simulateWork(2000, WorkflowStage.PLANNING); 
         break;
 
       case WorkflowStage.PLANNING:
@@ -66,11 +74,14 @@ class WorkflowEngine {
 
       case WorkflowStage.EXECUTION:
         // Dev/Mkt/Spec Squads work here (Longest phase)
+        // In a real scenario, this is where we would call geminiService.generateAgentResponse()
+        // and store the result in this.pipelineData.draftResult
         this.simulateWork(8000, WorkflowStage.OPTIMIZATION);
         break;
 
       case WorkflowStage.OPTIMIZATION:
-        // Optimization Squad improves the result
+        // Optimization Squad improves the result using the Adversarial Loop
+        // They take draftResult and produce finalResult
         this.simulateWork(3000, WorkflowStage.ARCHIVAL);
         break;
 
@@ -80,6 +91,11 @@ class WorkflowEngine {
         this.transitionTo(WorkflowStage.IDLE);
         break;
     }
+  }
+
+  private startNewCycle() {
+      this.pipelineData = {}; // Clear pipeline
+      this.transitionTo(WorkflowStage.INTENT);
   }
 
   private transitionTo(stage: WorkflowStage) {
