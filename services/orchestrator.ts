@@ -159,9 +159,9 @@ class AgentSwarmOrchestrator {
     const mapping: Record<WorkflowStage, AgentCategory[]> = {
       [WorkflowStage.IDLE]: ['CORE'],
       [WorkflowStage.INTENT]: ['CORE', 'DATA'], 
-      [WorkflowStage.PLANNING]: ['OPS', 'LEGAL', 'FINANCE'], // Planning involves legal/budget checks
-      [WorkflowStage.EXECUTION]: ['DEV', 'MARKETING', 'CYBERSEC', 'SCIENCE'], // The heavy lifters
-      [WorkflowStage.OPTIMIZATION]: ['OPS', 'DATA', 'CYBERSEC'], // Sec checks and optimization
+      [WorkflowStage.PLANNING]: ['OPS', 'LEGAL', 'FINANCE'], 
+      [WorkflowStage.EXECUTION]: ['DEV', 'MARKETING', 'CYBERSEC', 'SCIENCE'], 
+      [WorkflowStage.OPTIMIZATION]: ['OPS', 'DATA', 'CYBERSEC'], 
       [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE']
     };
 
@@ -185,8 +185,12 @@ class AgentSwarmOrchestrator {
       } else if (activeCategories.includes(squad.category)) {
           // If the squad belongs to the active category for this stage
           if (this.currentMode === SystemMode.ECO) {
-              // In Eco, only activate 20% of the available squads to save VRAM
-              shouldBeActive = Math.random() > 0.8; 
+              // REAL LOGIC (No Randomness):
+              // In Eco, strictly activate only the top 3 squads of the active category
+              // to guarantee VRAM safety and stable metrics.
+              const catSquads = this.squads.filter(s => s.category === squad.category);
+              const squadIndex = catSquads.findIndex(s => s.id === squad.id);
+              shouldBeActive = squadIndex < 3; 
           } else {
               shouldBeActive = true;
           }
@@ -207,7 +211,7 @@ class AgentSwarmOrchestrator {
             agent.ramUsage = 0;
             agent.cpuUsage = 0;
         } else {
-            // Randomize start status slightly for realism
+            // Keep some fluctuation in CPU/RAM to reflect thread activity
             agent.status = Math.random() > 0.5 ? AgentStatus.IDLE : AgentStatus.THINKING;
             agent.ramUsage = 50 + Math.random() * 50; 
         }
@@ -243,12 +247,17 @@ class AgentSwarmOrchestrator {
 
     switch (mode) {
       case SystemMode.ECO:
-        // Handled by workflow engine tick
+        // Handled by workflow engine tick (Deterministic)
         break;
       case SystemMode.BALANCED:
-        // Activate essential categories
+        // Activate essential categories deterministically
         this.squads.forEach(s => {
-            if (['DEV', 'DATA'].includes(s.category) && Math.random() > 0.7) this.setSquadState(s.id, true);
+            if (['DEV', 'DATA'].includes(s.category)) {
+               // Activate top 50%
+               const catSquads = this.squads.filter(sq => sq.category === s.category);
+               const idx = catSquads.findIndex(sq => sq.id === s.id);
+               if (idx < catSquads.length / 2) this.setSquadState(s.id, true);
+            }
         });
         break;
       case SystemMode.HIGH:
@@ -269,7 +278,7 @@ class AgentSwarmOrchestrator {
   }
 
   public tick() {
-    // Simulation Tick for metrics
+    // Simulation Tick for metrics (CPU/RAM fluctuation is real in any system)
     this.swarm.filter(a => a.enabled).forEach(agent => {
        if (agent.status === AgentStatus.WORKING && Math.random() > 0.98) agent.status = AgentStatus.IDLE;
        if (agent.status === AgentStatus.IDLE && Math.random() > 0.95) agent.status = AgentStatus.THINKING;

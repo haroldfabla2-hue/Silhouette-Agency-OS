@@ -13,11 +13,12 @@ export const generateAgentResponse = async (
   task: string, 
   previousOutput: string | null, // Context from previous workflow stage
   introspectionDepth: IntrospectionLayer
-): Promise<{ output: string; thoughts: string[] }> => {
+): Promise<{ output: string; thoughts: string[]; usage: number }> => {
   if (!apiKey) {
     return {
       output: "Error: API Key not found. Please configure process.env.API_KEY.",
-      thoughts: ["System check failed.", "Missing credentials."]
+      thoughts: ["System check failed.", "Missing credentials."],
+      usage: 0
     };
   }
 
@@ -61,6 +62,9 @@ export const generateAgentResponse = async (
 
     const fullText = response.text || "";
     
+    // Get Real Token Usage
+    const usage = response.usageMetadata?.totalTokenCount || 0;
+    
     // 5. Process through Introspection Engine (Real Parsing)
     const result = introspection.processNeuralOutput(fullText);
 
@@ -76,14 +80,16 @@ export const generateAgentResponse = async (
 
     return {
       output: result.cleanOutput,
-      thoughts: result.thoughts.length > 0 ? result.thoughts : ["(Introspection stream hidden or empty)"]
+      thoughts: result.thoughts.length > 0 ? result.thoughts : ["(Introspection stream hidden or empty)"],
+      usage: usage
     };
 
   } catch (error) {
     console.error("Gemini API Error:", error);
     return {
       output: "An error occurred during agent processing.",
-      thoughts: ["Error detected in neural pathway.", "Retrying connection..."]
+      thoughts: ["Error detected in neural pathway.", "Retrying connection..."],
+      usage: 0
     };
   }
 };
