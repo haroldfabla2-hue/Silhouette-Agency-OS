@@ -34,13 +34,25 @@ const DynamicWorkspace: React.FC = () => {
 
         useEffect(() => {
             try {
-                // 1. Transpile JSX to JS
-                const transpiled = Babel.transform(code, {
+                // 1. SANITIZE CODE (CRITICAL FIX)
+                // The browser 'new Function' cannot handle ES6 modules (import/export).
+                // We must strip them manually before passing to Babel/Execution.
+                
+                let cleanCode = code
+                    // Remove import statements entirely (deps are injected via scope)
+                    .replace(/^import\s+.*$/gm, '') 
+                    // Convert 'export default function App' to 'function App'
+                    .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1')
+                    // Remove 'export default App' at the end
+                    .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, '');
+
+                // 2. Transpile JSX to JS using Babel Standalone
+                const transpiled = Babel.transform(cleanCode, {
                     presets: ['react']
                 }).code;
 
-                // 2. Create the Function with dependencies in scope
-                // We inject React, Recharts, and Lucide into the scope of the generated code
+                // 3. Prepare Scope
+                // Inject React, Recharts, and Lucide into the execution scope
                 const scope = {
                     React,
                     ...React, // Inject useState, useEffect etc directly
@@ -51,23 +63,12 @@ const DynamicWorkspace: React.FC = () => {
                 const args = Object.keys(scope);
                 const values = Object.values(scope);
 
-                // Wrap in a function that returns the component
-                // The AI is instructed to write "export default function App() {}"
-                // We manipulate the string to make it return the component or simple functional component body
-                
-                let executableCode = transpiled;
-                
-                // Hacky but effective way to extract the default export
-                // We append "return App;" assuming the AI named it App, or we wrap it.
-                if (!executableCode.includes('return')) {
-                     // It might be a direct component body
-                }
-                
-                // Secure Evaluation
-                // NOTE: In a real production env, use a stronger sandbox.
+                // 4. Secure Evaluation
+                // We wrap the code and explicitly look for 'App' to return it.
                 const func = new Function(...args, `
-                    ${executableCode}
-                    return typeof App !== 'undefined' ? App : (() => null);
+                    ${transpiled}
+                    // Return the component named 'App' if it exists
+                    return typeof App !== 'undefined' ? App : (() => React.createElement('div', {style:{color:'red'}}, 'Error: Component must be named "App"'));
                 `);
 
                 const GeneratedComponent = func(...values);
