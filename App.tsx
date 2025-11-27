@@ -7,13 +7,14 @@ import IntrospectionHub from './components/IntrospectionHub';
 import TerminalLog from './components/TerminalLog';
 import SystemControl from './components/SystemControl'; 
 import ContinuumMemoryExplorer from './components/ContinuumMemoryExplorer';
-import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer } from './types';
+import ChatWidget from './components/ChatWidget'; 
+import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer, UserRole } from './types';
 import { MOCK_PROJECTS, SYSTEM_LOGS, DEFAULT_AUTONOMY_CONFIG } from './constants';
 import { orchestrator } from './services/orchestrator';
 import { continuum } from './services/continuumMemory';
 import { workflowEngine } from './services/workflowEngine';
 import { introspection } from './services/introspectionEngine';
-import { consciousness } from './services/consciousnessEngine'; // Import
+import { consciousness } from './services/consciousnessEngine';
 
 // Extend Window interface for non-standard Chrome memory API
 declare global {
@@ -23,6 +24,9 @@ declare global {
 }
 
 const App: React.FC = () => {
+  // State for RBAC Logic (Default to ADMIN for the OS User)
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.ADMIN);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [agents, setAgents] = useState<Agent[]>([]);
   const [autonomyConfig, setAutonomyConfig] = useState<AutonomousConfig>(DEFAULT_AUTONOMY_CONFIG);
@@ -209,7 +213,15 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-950 overflow-hidden relative">
+      
+      {/* 1. Floating Omni-Chat (RBAC Aware) - Always available to Admin */}
+      <ChatWidget 
+        currentUserRole={currentUserRole} 
+        onChangeRole={setCurrentUserRole} 
+      />
+
+      {/* 2. Main App Layout */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 p-8 overflow-y-auto relative">
          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 opacity-50"></div>

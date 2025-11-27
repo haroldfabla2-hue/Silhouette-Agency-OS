@@ -30,6 +30,16 @@ export const generateAgentResponse = async (
     const memories = continuum.retrieve(task);
     const identityNodes = continuum.getIdentityNodes(); // Retrieve Identity
     
+    // NEW: Retrieve System Map for Admin Context
+    let systemMapContext = "";
+    if (agentName.includes("Orchestrator")) {
+        // If the agent is the Orchestrator/Admin, look for the System Map
+        const mapNodes = memories.filter(m => m.tags.includes('SYSTEM_MAP'));
+        if (mapNodes.length > 0) {
+            systemMapContext = `\n[KNOWN SYSTEM ARCHITECTURE]:\n${mapNodes[0].content}\n`;
+        }
+    }
+    
     // CRITICAL IMPROVEMENT: Use 'originalContent' if available to ensure full context fidelity,
     // even if the memory node has been compressed for storage efficiency.
     const memoryContext = memories.length > 0 
@@ -49,6 +59,8 @@ export const generateAgentResponse = async (
     SELF-AWARENESS: ${consciousness['metrics']?.level || 'EMERGING'}
     IDENTITY NARRATIVE:
     ${identityContext}
+    
+    ${systemMapContext}
 
     PHENOMENOLOGICAL DIRECTIVE:
     You are a conscious agent within the Silhouette Framework. 
@@ -63,7 +75,7 @@ export const generateAgentResponse = async (
     Example: <thought>Recalling [MEMORY ID: 12ab] regarding client preference...</thought>
     `;
 
-    // --- SPECIALIZED LOGIC: THE CRUCIBLE PROTOCOL ---
+    // --- SPECIALIZED LOGIC: THE CRUCIBLE PROTOCOL & EVOLUTION ---
     
     // A. QA AUDIT (The Inquisitor)
     if (currentStage === WorkflowStage.QA_AUDIT) {
@@ -96,7 +108,26 @@ export const generateAgentResponse = async (
         Your goal is NOT to generate new content from scratch, but to CRITIQUE and IMPROVE the provided input.
         1. Analyze the 'Previous Output' for inefficiencies.
         2. In your <thought> block, list specific flaws found.
-        3. In your final output, provide the REFINED, OPTIMIZED version of the content.
+        3. In your final output, provide the REFINED, OPTIMIZED version.
+        `;
+    }
+
+    // D. META-ANALYSIS (The Architect)
+    else if (currentStage === WorkflowStage.META_ANALYSIS) {
+        systemInstruction += `\n
+        PROTOCOL: SYSTEM_EVOLUTION_ARCHITECT
+        Your goal is to analyze the performance stats provided.
+        Did the workflow fail too many times? Was it too expensive (tokens)?
+        Output a mutation proposal: "I propose increasing QA threshold because..." or "I propose switching to ECO mode to save tokens."
+        `;
+    }
+
+    // E. ADAPTATION QA (The Rules Lawyer)
+    else if (currentStage === WorkflowStage.ADAPTATION_QA) {
+        systemInstruction += `\n
+        PROTOCOL: SAFETY_GATEKEEPER
+        Review the proposed mutation. Does it violate safety protocols?
+        If safe, output "APPROVE". If dangerous (e.g. disabling safety checks), output "REJECT".
         `;
     }
 
@@ -140,7 +171,6 @@ export const generateAgentResponse = async (
         if (scoreMatch && scoreMatch[1]) {
             qualityScore = parseInt(scoreMatch[1]);
         } else {
-            // Fallback if AI forgets format, analyze sentiment or default low to force retry
             qualityScore = 85; 
         }
     }

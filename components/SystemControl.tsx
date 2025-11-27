@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { SystemMode, SystemMetrics, AutonomousConfig, BusinessType, AgentCategory } from '../types';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
-import { ShieldCheck, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive, ShoppingBag, Factory, Stethoscope, Lightbulb, Server, Activity } from 'lucide-react';
+import { ShieldCheck, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive, ShoppingBag, Factory, Stethoscope, Lightbulb, Server, Activity, Globe, Copy, Check, Network, Dna } from 'lucide-react';
+import InstallationWizard from './InstallationWizard';
 
 interface SystemControlProps {
   metrics: SystemMetrics;
@@ -16,6 +17,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
   const currentMode = metrics.currentMode;
   const activeCats = orchestrator.getActiveCategories();
   const [coreServices, setCoreServices] = useState(orchestrator.getCoreServices());
+  const [showIntegrationModal, setShowIntegrationModal] = useState(false);
 
   useEffect(() => {
       const interval = setInterval(() => {
@@ -24,9 +26,21 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
       return () => clearInterval(interval);
   }, []);
 
-  // Local state for inputs before applying
   const [tempConfig, setTempConfig] = useState(autonomyConfig);
   const [selectedBusiness, setSelectedBusiness] = useState<BusinessType>('GENERAL');
+  const [apiKey, setApiKey] = useState<string>('');
+  const [copied, setCopied] = useState(false);
+
+  const generateApiKey = () => {
+      const key = 'sk-silhouette-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      setApiKey(key);
+  };
+
+  const copyToClipboard = () => {
+      navigator.clipboard.writeText(apiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+  };
 
   const applyConfig = () => {
     setAutonomyConfig(tempConfig);
@@ -40,13 +54,12 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
   };
 
   const toggleDivision = (cat: AgentCategory) => {
-      if (cat === 'CORE') return; // Protected
+      if (cat === 'CORE') return;
       const isEnabled = activeCats.includes(cat);
       orchestrator.toggleCategory(cat, !isEnabled);
       setMode(SystemMode.CUSTOM);
   };
 
-  // Expanded Enterprise Business Presets
   const businessTypes: { id: BusinessType; icon: any; label: string; desc: string }[] = [
       { id: 'MARKETING_AGENCY', icon: Briefcase, label: 'Creative Agency', desc: 'Activates Marketing, Content, and Growth squads.' },
       { id: 'LAW_FIRM', icon: Scale, label: 'Legal Firm', desc: 'Prioritizes Compliance, Contracts, and Audit squads.' },
@@ -60,16 +73,19 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
       { id: 'CYBER_DEFENSE', icon: Lock, label: 'Cyber Security', desc: 'Activates Red Team, Blue Team and Encryption.' },
   ];
 
-  // Expanded Categories
   const categories: AgentCategory[] = ['DEV', 'MARKETING', 'DATA', 'CYBERSEC', 'LEGAL', 'FINANCE', 'SCIENCE', 'OPS', 'HEALTH', 'RETAIL', 'MFG', 'ENERGY', 'EDU'];
 
   return (
-    <div className="h-[calc(100vh-2rem)] flex gap-6 overflow-hidden">
+    <div className="h-[calc(100vh-2rem)] flex gap-6 overflow-hidden relative">
       
+      {showIntegrationModal && (
+          <InstallationWizard onComplete={() => setShowIntegrationModal(false)} onClose={() => setShowIntegrationModal(false)} />
+      )}
+
       {/* Left Column: Configuration & Adaptation */}
       <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
         
-        {/* 1. Power Levels & Real Telemetry */}
+        {/* 1. Power Levels */}
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
             <Zap className="text-yellow-400" /> System Power & Hardware (Real Telemetry)
@@ -90,7 +106,6 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
              ))}
           </div>
           
-          {/* Real Hardware Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
                 <div className="flex items-center gap-2 mb-2">
@@ -128,7 +143,46 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
           </div>
         </div>
 
-        {/* 2. Core Services Health (Enterprise Architecture) */}
+        {/* 2. External API Integration */}
+        <div className="glass-panel rounded-xl p-6 border border-cyan-500/30 bg-cyan-900/10">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                        <Globe className="text-cyan-400" /> Universal API Bridge
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                        Connect external apps (Python, Node, LangChain) to Silhouette.
+                    </p>
+                </div>
+                <button 
+                    onClick={() => setShowIntegrationModal(true)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-bold flex items-center gap-2 shadow-lg transition-all"
+                >
+                    <Network size={14} /> DEPLOY INTEGRATION SQUAD
+                </button>
+            </div>
+            
+            <div className="flex flex-col gap-4">
+                <div className="flex gap-2">
+                    <input 
+                        type="text" 
+                        readOnly 
+                        value={apiKey || "Click Generate to create a new access key"} 
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-xs font-mono text-cyan-400"
+                    />
+                    <button onClick={generateApiKey} className="px-4 py-2 bg-cyan-700 text-white rounded text-xs font-bold hover:bg-cyan-600">
+                        GENERATE KEY
+                    </button>
+                    {apiKey && (
+                        <button onClick={copyToClipboard} className="px-3 py-2 bg-slate-800 text-white rounded hover:bg-slate-700">
+                            {copied ? <Check size={16} className="text-green-500"/> : <Copy size={16}/>}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* 3. Core Services Health */}
         <div className="glass-panel rounded-xl p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
                 <Server className="text-cyan-400" /> Core Services Architecture
@@ -155,14 +209,11 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
             </div>
         </div>
 
-        {/* 3. Business Adaptation */}
+        {/* 4. Business Adaptation */}
         <div className="glass-panel rounded-xl p-6">
            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
               <Building2 className="text-purple-400" /> Business Identity Adaptation
            </h2>
-           <p className="text-xs text-slate-400 mb-4">
-              Auto-configure the swarm for specific industry verticals.
-           </p>
            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {businessTypes.map(biz => {
                   const Icon = biz.icon;
@@ -188,16 +239,12 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
            </div>
         </div>
 
-        {/* 4. Granular Division Control */}
+        {/* 5. Granular Division Control */}
         <div className="glass-panel rounded-xl p-6">
-           <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                  <ShieldCheck className="text-green-400" /> Division Control (Custom)
-              </h2>
-           </div>
-           
+           <h2 className="text-xl font-bold text-white flex items-center gap-3 mb-4">
+               <ShieldCheck className="text-green-400" /> Division Control (Custom)
+           </h2>
            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {/* Core is locked */}
               <div className="p-3 bg-slate-900/80 border border-cyan-900/30 rounded flex flex-col justify-between opacity-70 cursor-not-allowed">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-cyan-400">CORE</span>
@@ -245,7 +292,6 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
 
         <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
           
-          {/* Master Toggle */}
           <div className="flex items-center justify-between p-4 bg-purple-900/10 border border-purple-500/30 rounded-xl">
             <div>
               <span className="block text-white font-bold text-sm">Autonomy Enabled</span>
@@ -264,7 +310,6 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
             </button>
           </div>
 
-          {/* 24/7 Mode */}
           <div className="space-y-3">
              <label className="flex items-center gap-2 text-sm text-slate-300">
                <input 
@@ -283,9 +328,26 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
              </p>
           </div>
 
+          {/* New Dynamic Evolution Toggle */}
+          <div className="space-y-3 p-3 rounded bg-blue-900/10 border border-blue-500/30">
+             <label className="flex items-center gap-2 text-sm text-slate-300">
+               <input 
+                  type="checkbox" 
+                  checked={tempConfig.allowEvolution}
+                  onChange={(e) => setTempConfig({...tempConfig, allowEvolution: e.target.checked})}
+                  className="rounded bg-slate-800 border-slate-600 text-blue-500"
+               />
+               <span className="flex items-center gap-2 text-blue-300 font-bold">
+                 <Dna size={14} /> Dynamic Workflow Evolution
+               </span>
+             </label>
+             <p className="text-[10px] text-slate-500 pl-6">
+               Allows the Workflow Architect to re-write system rules and adapt strategy based on performance metrics.
+             </p>
+          </div>
+
           <hr className="border-slate-800" />
 
-          {/* Limits */}
           <div className="space-y-4">
             <div>
               <label className="text-xs text-slate-500 font-bold uppercase flex items-center gap-2 mb-2">
@@ -314,7 +376,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
               <ul className="text-[10px] text-slate-500 font-mono space-y-1">
                   <li>Strategy: The Crucible (QA Loop)</li>
                   <li>Introspection: {metrics.introspectionDepth} Layers</li>
-                  <li>Max Retries: 3</li>
+                  <li>Evolution: {tempConfig.allowEvolution ? 'ENABLED (Architect)' : 'DISABLED'}</li>
                   <li>Safety: Active Monitoring</li>
               </ul>
           </div>

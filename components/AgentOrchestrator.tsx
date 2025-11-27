@@ -30,10 +30,11 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
     { id: WorkflowStage.INTENT, label: 'INTENT' },
     { id: WorkflowStage.PLANNING, label: 'PLAN' },
     { id: WorkflowStage.EXECUTION, label: 'EXECUTE' },
-    { id: WorkflowStage.QA_AUDIT, label: 'QA AUDIT' }, // The Crucible
-    { id: WorkflowStage.REMEDIATION, label: 'FIX' },     // The Crucible
+    { id: WorkflowStage.QA_AUDIT, label: 'QA AUDIT' }, 
+    { id: WorkflowStage.REMEDIATION, label: 'FIX' },     
     { id: WorkflowStage.OPTIMIZATION, label: 'OPTIMIZE' },
     { id: WorkflowStage.ARCHIVAL, label: 'ARCHIVE' },
+    { id: WorkflowStage.META_ANALYSIS, label: 'ADAPT' } // New Adaptation Stage
   ];
 
   // Icons for Categories (Expanded Enterprise)
@@ -88,6 +89,8 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
               <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-800 -z-10"></div>
               {pipelineSteps.map((step, idx) => {
                 const isActive = currentStage === step.id;
+                // Special case for ADAPT (Meta Analysis)
+                const isMeta = step.id === WorkflowStage.META_ANALYSIS;
                 const isPast = pipelineSteps.findIndex(p => p.id === currentStage) > idx;
                 
                 return (
@@ -95,14 +98,16 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
                       isActive ? 'bg-cyan-500 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' :
                       isPast ? 'bg-green-500/20 border-green-500 text-green-500' :
+                      isMeta ? 'bg-purple-900/20 border-purple-500 text-purple-500' :
                       'bg-slate-900 border-slate-700 text-slate-600'
                     }`}>
                       {isActive ? <div className="w-3 h-3 bg-white rounded-full animate-pulse" /> : 
                        isPast ? <CheckCircle2 size={14} /> :
+                       isMeta ? <Database size={14} /> :
                        <div className="w-2 h-2 bg-slate-600 rounded-full" />
                       }
                     </div>
-                    <span className={`text-[9px] font-mono font-bold ${isActive ? 'text-cyan-400' : 'text-slate-500'}`}>
+                    <span className={`text-[9px] font-mono font-bold ${isActive ? 'text-cyan-400' : isMeta ? 'text-purple-400' : 'text-slate-500'}`}>
                       {step.label}
                     </span>
                   </div>
@@ -221,12 +226,6 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                     );
                     })}
                 </div>
-                {filteredSquads.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-600">
-                        <Filter size={48} className="mb-4 opacity-20" />
-                        <p>No squads found matching your filters.</p>
-                    </div>
-                )}
             </div>
         </div>
 
@@ -253,7 +252,7 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                   <label className="text-xs text-slate-500 uppercase font-mono">Mission Directive</label>
                   <p className="font-mono text-sm text-cyan-200 mt-1 leading-relaxed">
                     {selectedAgent.enabled 
-                      ? `Active Protocol: ${currentStage}. Coordinating with ${selectedAgent.category} division for optimal output.` 
+                      ? `Active Protocol: ${currentStage}. Coordinating with ${selectedAgent.category} division.` 
                       : "System Offline. Waiting for deployment authorization."}
                   </p>
                 </div>
@@ -278,8 +277,6 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                       <p>{`> init process --id=${selectedAgent.id}`}</p>
                       <p>{`> mounting volume /mnt/data/${selectedAgent.category.toLowerCase()}`}</p>
                       <p>{`> binding port: ${selectedAgent.port || 'DYNAMIC'}... OK`}</p>
-                      <p>{`> connecting to workflow_engine:8080... OK`}</p>
-                      <p>{`> role assigned: ${selectedAgent.role}`}</p>
                       {selectedAgent.enabled && (
                           <>
                             <p className="text-cyan-400">{`> status: ONLINE`}</p>

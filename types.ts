@@ -20,6 +20,8 @@ export enum WorkflowStage {
   QA_AUDIT = 'QUALITY_ASSURANCE_AUDIT',
   REMEDIATION = 'ERROR_REMEDIATION',
   OPTIMIZATION = 'AUTO_OPTIMIZATION',
+  META_ANALYSIS = 'SYSTEM_META_ANALYSIS', // New: Self-Reflection
+  ADAPTATION_QA = 'ADAPTATION_PROTOCOL_QA', // New: Safety check for changes
   ARCHIVAL = 'CONTEXT_ARCHIVAL',
   IDLE = 'SYSTEM_IDLE'
 }
@@ -94,15 +96,58 @@ export type AgentCategory =
   | 'RETAIL'
   | 'MFG'
   | 'ENERGY'
-  | 'EDU';
+  | 'EDU'
+  | 'INSTALL'; // New Category for Installation Squad
+
+// --- INSTALLATION & RBAC TYPES ---
+
+export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN', // Can see everything + System Control
+  ADMIN = 'ADMIN',             // Can see Dashboard + Orchestrator
+  WORKER_L1 = 'WORKER_L1',     // Limited Task View
+  WORKER_L2 = 'WORKER_L2',     // Full Task View
+  CLIENT = 'CLIENT',           // Only Project Status + Limited Chat
+  VISITOR = 'VISITOR'          // No Access
+}
+
+export interface SystemMap {
+  frontendComponents: string[];
+  backendEndpoints: string[];
+  databaseSchema: string[];
+  rolePolicy: Record<UserRole, string[]>;
+  scanTimestamp: number;
+}
+
+export type InstallationStep = 'KEYS' | 'SCANNING' | 'MAPPING' | 'HANDOVER' | 'COMPLETE';
+
+export interface InstallationState {
+  isInstalled: boolean;
+  currentStep: InstallationStep;
+  progress: number;
+  logs: string[];
+  systemMap: SystemMap | null;
+  apiKeys: {
+    gemini?: string;
+    openai?: string;
+    anthropic?: string;
+  };
+}
 
 // Data Structures
 export interface AutonomousConfig {
   enabled: boolean;
   mode24_7: boolean; // Continuous loop
+  allowEvolution: boolean; // Allow system to rewrite its own rules
   maxRunTimeHours: number; // 0 = infinite
   maxDailyTokens: number; // Cost safety
   safeCleanup: boolean; // Protect "SACRED" files
+}
+
+export interface WorkflowMutation {
+  target: 'INTROSPECTION_DEPTH' | 'SYSTEM_MODE' | 'QA_THRESHOLD';
+  action: 'INCREASE' | 'DECREASE' | 'MAINTAIN';
+  reason: string;
+  approved: boolean;
 }
 
 export interface Agent {
@@ -230,4 +275,23 @@ export interface ConsciousnessMetrics {
   identityCoherence: number;
   emergenceIndex: number;
   qualia: QualiaMap[];
+}
+
+export interface ApiConfig {
+    port: number;
+    enabled: boolean;
+    apiKey: string;
+}
+
+export interface IntegrationConfig {
+    targetUrl: string;
+    targetName: string;
+    authType: 'BEARER' | 'OAUTH' | 'COOKIE';
+}
+
+export interface HostEnvironment {
+    domStructure: string;
+    routes: string[];
+    cookies: string[];
+    localStorageKeys: string[];
 }

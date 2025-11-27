@@ -218,7 +218,9 @@ class AgentSwarmOrchestrator {
       [WorkflowStage.QA_AUDIT]: ['OPS', 'CYBERSEC', 'LEGAL'],
       [WorkflowStage.REMEDIATION]: ['DEV', 'DATA'],
       [WorkflowStage.OPTIMIZATION]: ['OPS', 'DATA', 'CYBERSEC'], 
-      [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE']
+      [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE'],
+      [WorkflowStage.META_ANALYSIS]: ['CORE', 'DATA'], // Architect + Data for analysis
+      [WorkflowStage.ADAPTATION_QA]: ['LEGAL', 'CORE'] // Rules Lawyer + Orchestrator
     };
 
     const activeCategories = mapping[stage] || [];
