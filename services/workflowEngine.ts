@@ -44,6 +44,7 @@ class WorkflowEngine {
       enabled: false,
       mode24_7: false,
       allowEvolution: false,
+      smartPaging: false,
       maxRunTimeHours: 4,
       maxDailyTokens: 500000,
       safeCleanup: true

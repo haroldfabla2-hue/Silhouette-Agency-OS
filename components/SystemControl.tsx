@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { SystemMode, SystemMetrics, AutonomousConfig, BusinessType, AgentCategory } from '../types';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
-import { ShieldCheck, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive, ShoppingBag, Factory, Stethoscope, Lightbulb, Server, Activity, Globe, Copy, Check, Network, Dna } from 'lucide-react';
+import { ShieldCheck, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive, ShoppingBag, Factory, Stethoscope, Lightbulb, Server, Activity, Globe, Copy, Check, Network, Dna, ArrowRightLeft } from 'lucide-react';
 import InstallationWizard from './InstallationWizard';
 
 interface SystemControlProps {
@@ -122,6 +122,10 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
                       style={{ width: `${Math.min(100, (metrics.jsHeapSize / 1000) * 100)}%` }}
                    />
                 </div>
+                <div className="mt-2 text-[10px] text-slate-500 flex justify-between font-mono">
+                    <span>Agents in RAM: {metrics.agentsInRam}</span>
+                    <span className="text-yellow-500">BUS SATURATION: {metrics.agentsInRam > 20 ? 'HIGH' : 'LOW'}</span>
+                </div>
              </div>
 
              <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
@@ -135,9 +139,13 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
                 </div>
                 <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                    <div 
-                      className={`h-full transition-all duration-500 ${metrics.cpuTickDuration > 50 ? 'bg-red-500' : 'bg-purple-500'}`}
+                      className={`h-full transition-all duration-500 ${metrics.cpuTickDuration > 100 ? 'bg-red-500' : 'bg-purple-500'}`}
                       style={{ width: `${Math.min(100, metrics.cpuTickDuration * 2)}%` }}
                    />
+                </div>
+                <div className="mt-2 text-[10px] text-slate-500 flex justify-between font-mono">
+                    <span>Agents in VRAM: {metrics.agentsInVram}</span>
+                    <span className="text-purple-500">GPU OVERHEAD: {(metrics.agentsInVram * 0.1).toFixed(1)}ms</span>
                 </div>
              </div>
           </div>
@@ -346,6 +354,24 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
              </p>
           </div>
 
+          {/* New Smart Paging Toggle */}
+          <div className="space-y-3 p-3 rounded bg-orange-900/10 border border-orange-500/30">
+             <label className="flex items-center gap-2 text-sm text-slate-300">
+               <input 
+                  type="checkbox" 
+                  checked={tempConfig.smartPaging}
+                  onChange={(e) => setTempConfig({...tempConfig, smartPaging: e.target.checked})}
+                  className="rounded bg-slate-800 border-slate-600 text-orange-500"
+               />
+               <span className="flex items-center gap-2 text-orange-300 font-bold">
+                 <ArrowRightLeft size={14} /> Smart Memory Paging
+               </span>
+             </label>
+             <p className="text-[10px] text-slate-500 pl-6">
+               Automatically offload non-critical agents to RAM when VRAM exceeds 3.5GB. Causes CPU latency spikes.
+             </p>
+          </div>
+
           <hr className="border-slate-800" />
 
           <div className="space-y-4">
@@ -377,7 +403,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
                   <li>Strategy: The Crucible (QA Loop)</li>
                   <li>Introspection: {metrics.introspectionDepth} Layers</li>
                   <li>Evolution: {tempConfig.allowEvolution ? 'ENABLED (Architect)' : 'DISABLED'}</li>
-                  <li>Safety: Active Monitoring</li>
+                  <li>Memory: {tempConfig.smartPaging ? 'SMART PAGING (RAM/VRAM)' : 'PURE VRAM'}</li>
               </ul>
           </div>
         </div>

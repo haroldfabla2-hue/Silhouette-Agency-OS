@@ -15,7 +15,8 @@ export const INITIAL_AGENTS: Agent[] = [
       role: 'System Architect',
       status: AgentStatus.OFFLINE,
       enabled: false,
-      cpuUsage: 0, ramUsage: 0, lastActive: Date.now()
+      cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+      memoryLocation: 'VRAM'
   },
   {
       id: 'install-02',
@@ -26,7 +27,8 @@ export const INITIAL_AGENTS: Agent[] = [
       role: 'Schema Mapper',
       status: AgentStatus.OFFLINE,
       enabled: false,
-      cpuUsage: 0, ramUsage: 0, lastActive: Date.now()
+      cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+      memoryLocation: 'VRAM'
   },
   {
       id: 'install-03',
@@ -37,7 +39,8 @@ export const INITIAL_AGENTS: Agent[] = [
       role: 'API Analyst',
       status: AgentStatus.OFFLINE,
       enabled: false,
-      cpuUsage: 0, ramUsage: 0, lastActive: Date.now()
+      cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+      memoryLocation: 'VRAM'
   },
 
   // --- 1. INTENT & ORCHESTRATION SQUAD ---
@@ -50,7 +53,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'System Controller', 
     status: AgentStatus.WORKING, 
     enabled: true,
-    cpuUsage: 12, ramUsage: 150, lastActive: Date.now() 
+    cpuUsage: 12, ramUsage: 150, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
   { 
     id: 'core-02', 
@@ -61,7 +65,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Prompt Engineer Lead', 
     status: AgentStatus.WORKING, 
     enabled: true,
-    cpuUsage: 15, ramUsage: 120, lastActive: Date.now() 
+    cpuUsage: 15, ramUsage: 120, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
   { 
     id: 'core-03', 
@@ -72,7 +77,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'System Evolutionist', 
     status: AgentStatus.IDLE, 
     enabled: true,
-    cpuUsage: 25, ramUsage: 200, lastActive: Date.now() 
+    cpuUsage: 25, ramUsage: 200, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
 
   // --- 2. STRATEGY & PLANNING SQUAD ---
@@ -85,7 +91,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Strategic Planner', 
     status: AgentStatus.IDLE, 
     enabled: true,
-    cpuUsage: 5, ramUsage: 200, lastActive: Date.now() 
+    cpuUsage: 5, ramUsage: 200, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
 
   // --- 3. CONTEXT & MEMORY SQUAD ---
@@ -98,7 +105,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Context Keeper', 
     status: AgentStatus.WORKING, 
     enabled: true,
-    cpuUsage: 8, ramUsage: 350, lastActive: Date.now() 
+    cpuUsage: 8, ramUsage: 350, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
   { 
     id: 'ctx-02', 
@@ -109,7 +117,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Long-Term Supervisor', 
     status: AgentStatus.IDLE, 
     enabled: true,
-    cpuUsage: 4, ramUsage: 180, lastActive: Date.now() 
+    cpuUsage: 4, ramUsage: 180, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
 
   // --- 4. OPTIMIZATION & QA SQUAD ---
@@ -122,7 +131,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Workflow Optimizer', 
     status: AgentStatus.IDLE, 
     enabled: true,
-    cpuUsage: 0, ramUsage: 150, lastActive: Date.now() 
+    cpuUsage: 0, ramUsage: 150, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
   { 
     id: 'qa-03', 
@@ -133,7 +143,8 @@ export const INITIAL_AGENTS: Agent[] = [
     role: 'Adaptation Auditor', 
     status: AgentStatus.IDLE, 
     enabled: true,
-    cpuUsage: 5, ramUsage: 90, lastActive: Date.now() 
+    cpuUsage: 5, ramUsage: 90, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
 
   // --- 5. INTEGRATION SQUAD (The Architects) ---
@@ -146,7 +157,8 @@ export const INITIAL_AGENTS: Agent[] = [
       role: 'Integration Lead',
       status: AgentStatus.IDLE,
       enabled: true,
-      cpuUsage: 0, ramUsage: 0, lastActive: Date.now()
+      cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+      memoryLocation: 'VRAM' 
   },
   {
       id: 'int-02',
@@ -157,15 +169,18 @@ export const INITIAL_AGENTS: Agent[] = [
       role: 'DOM Analyzer',
       status: AgentStatus.IDLE,
       enabled: true,
-      cpuUsage: 0, ramUsage: 0, lastActive: Date.now()
+      cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+      memoryLocation: 'VRAM' 
   },
 
   // --- 6. EXECUTION SQUADS (Leaders only, workers generated) ---
   { 
-    id: 'dev-lead', name: 'Code_Architect', teamId: 'TEAM_DEV', category: 'DEV', roleType: AgentRoleType.LEADER, role: 'Lead Developer', status: AgentStatus.IDLE, enabled: true, cpuUsage: 0, ramUsage: 0, lastActive: Date.now() 
+    id: 'dev-lead', name: 'Code_Architect', teamId: 'TEAM_DEV', category: 'DEV', roleType: AgentRoleType.LEADER, role: 'Lead Developer', status: AgentStatus.IDLE, enabled: true, cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   },
   { 
-    id: 'mkt-lead', name: 'Creative_Director', teamId: 'TEAM_MKT', category: 'MARKETING', roleType: AgentRoleType.LEADER, role: 'Brand Director', status: AgentStatus.IDLE, enabled: true, cpuUsage: 0, ramUsage: 0, lastActive: Date.now() 
+    id: 'mkt-lead', name: 'Creative_Director', teamId: 'TEAM_MKT', category: 'MARKETING', roleType: AgentRoleType.LEADER, role: 'Brand Director', status: AgentStatus.IDLE, enabled: true, cpuUsage: 0, ramUsage: 0, lastActive: Date.now(),
+    memoryLocation: 'VRAM' 
   }
 ];
 
@@ -179,6 +194,7 @@ export const DEFAULT_AUTONOMY_CONFIG: AutonomousConfig = {
   enabled: false,
   mode24_7: false,
   allowEvolution: false, // New capability
+  smartPaging: false,
   maxRunTimeHours: 8,
   maxDailyTokens: 1000000, 
   safeCleanup: true

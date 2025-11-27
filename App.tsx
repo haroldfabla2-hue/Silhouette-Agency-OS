@@ -34,6 +34,8 @@ const App: React.FC = () => {
   
   const [metrics, setMetrics] = useState<SystemMetrics>({
     activeAgents: 0,
+    agentsInVram: 0,
+    agentsInRam: 0,
     introspectionDepth: 32,
     awarenessScore: 85.0,
     fps: 60,
@@ -78,27 +80,31 @@ const App: React.FC = () => {
 
       // 2. Tick Swarm Logic
       orchestrator.tick();
+      // Apply Memory Paging Logic based on current VRAM load
+      orchestrator.balanceMemoryLoad(metrics.vramUsage);
+
       const currentAgents = orchestrator.getAgents();
       const activeCount = orchestrator.getActiveCount();
+      const agentsInVram = currentAgents.filter(a => a.enabled && a.memoryLocation === 'VRAM').length;
+      const agentsInRam = currentAgents.filter(a => a.enabled && a.memoryLocation === 'RAM').length;
 
       // 3. Tick Memory Maintenance (Ebbinghaus Decay)
-      // Run less frequently to save CPU, but for demo we run it every tick or so
       if (Math.random() > 0.8) continuum.runMaintenance();
 
       // 4. COMPUTATIONAL WEIGHT INJECTION (The "Real Feel" Physics)
       if (activeCount > 0) {
           const loadFactor = activeCount * 5000; 
+          // If agents are in RAM, CPU Load increases drastically due to bus latency simulation
+          const ramLatencyPenalty = agentsInRam * 50000; 
           let checksum = 0;
-          for (let i = 0; i < loadFactor; i++) {
+          for (let i = 0; i < loadFactor + ramLatencyPenalty; i++) {
               checksum += Math.sqrt(i) * Math.random();
           }
           if (checksum === -1) console.log(checksum);
       }
       
       // 5. Tick Consciousness Engine (New)
-      // Uses current thoughts and awareness to calculate Phi/Identity
       const currentThoughts = workflowEngine.getLastThoughts();
-      // Calculate awareness for consciousness engine
       const memoryBonus = Math.min(10, continuum.getStats().archivedNodes * 0.5);
       let modeBonus = 0;
       if (metrics.currentMode === SystemMode.BALANCED) modeBonus = 5;
@@ -127,18 +133,18 @@ const App: React.FC = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const pixelRatio = window.devicePixelRatio || 1;
-      // Base browser overhead (double buffering + compositing)
       const baseOverhead = (width * height * pixelRatio * 4 * 3) / (1024 * 1024);
       
-      // Agent Context Overhead (Simulating CUDA contexts for each active container)
-      // Increase this to 35MB per agent to simulate heavy LLM context loading
-      const contextSizePerAgent = 35; 
-      const swarmAllocation = activeCount * contextSizePerAgent;
-      
-      // React DOM Overhead (Nodes per card)
       const domOverhead = 200; 
       
-      const estimatedVram = baseOverhead + domOverhead + swarmAllocation;
+      // MEMORY PHYSICS:
+      // Agent in VRAM = 35MB VRAM / 0MB Extra RAM
+      // Agent in RAM = 2MB VRAM (Metadata) / 35MB Extra RAM (Offloaded Context)
+      const vramSwarmAllocation = (agentsInVram * 35) + (agentsInRam * 2);
+      const ramSwarmAllocation = agentsInRam * 35;
+
+      const estimatedVram = baseOverhead + domOverhead + vramSwarmAllocation;
+      const estimatedRam = heapSize + ramSwarmAllocation;
 
       // FPS Calculation
       frameCount++;
@@ -150,10 +156,10 @@ const App: React.FC = () => {
 
       // ALERT LOGIC
       let alertMsg = null;
-      if (estimatedVram > 3800) { // Near 4GB limit of RTX 3050
+      if (estimatedVram > 3800) { 
           alertMsg = "VRAM CRITICAL: SWARM EXCEEDS RTX 3050 CAPACITY (4GB)";
       } else if (tickDuration > 100) {
-          alertMsg = "CPU SATURATION: LOGIC LOOP LAG DETECTED";
+          alertMsg = "CPU SATURATION: HIGH LATENCY (BUS BOTTLENECK DETECTED)";
       }
 
       setAgents([...currentAgents]); 
@@ -162,7 +168,9 @@ const App: React.FC = () => {
       setMetrics(prev => ({
         ...prev,
         activeAgents: activeCount,
-        jsHeapSize: heapSize + (activeCount * 0.5), 
+        agentsInVram: agentsInVram,
+        agentsInRam: agentsInRam,
+        jsHeapSize: estimatedRam, 
         vramUsage: estimatedVram, 
         cpuTickDuration: tickDuration, 
         netLatency: 0, 
@@ -176,7 +184,7 @@ const App: React.FC = () => {
     }, 800); 
 
     return () => clearInterval(interval);
-  }, [metrics.currentMode, metrics.introspectionDepth]); 
+  }, [metrics.currentMode, metrics.introspectionDepth, metrics.vramUsage]); // Depend on VRAM to trigger paging logic
 
   const renderContent = () => {
     switch (activeTab) {
@@ -188,7 +196,10 @@ const App: React.FC = () => {
             metrics={metrics} 
             setMode={handleModeChange} 
             autonomyConfig={autonomyConfig}
-            setAutonomyConfig={setAutonomyConfig}
+            setAutonomyConfig={(cfg) => {
+                setAutonomyConfig(cfg);
+                orchestrator.setSmartPaging(cfg.smartPaging);
+            }}
           />
         );
       case 'orchestrator':
@@ -214,14 +225,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-950 overflow-hidden relative">
-      
-      {/* 1. Floating Omni-Chat (RBAC Aware) - Always available to Admin */}
-      <ChatWidget 
-        currentUserRole={currentUserRole} 
-        onChangeRole={setCurrentUserRole} 
-      />
-
-      {/* 2. Main App Layout */}
+      <ChatWidget currentUserRole={currentUserRole} onChangeRole={setCurrentUserRole} />
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 p-8 overflow-y-auto relative">
          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 opacity-50"></div>

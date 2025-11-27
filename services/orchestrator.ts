@@ -10,6 +10,7 @@ class AgentSwarmOrchestrator {
   private squads: Squad[] = [];
   private currentMode: SystemMode = SystemMode.ECO;
   private currentBusinessPreset: BusinessType = 'GENERAL';
+  private smartPagingEnabled: boolean = false;
   
   // Core Services State (Simulated High Availability)
   private coreServices: ServiceStatus[] = [
@@ -27,9 +28,14 @@ class AgentSwarmOrchestrator {
     this.applyMode(SystemMode.ECO); 
   }
 
+  public setSmartPaging(enabled: boolean) {
+      this.smartPagingEnabled = enabled;
+  }
+
   private initializeSwarm() {
-    // 1. Load the Core "Hero" Squads first (Core, Strategy, Context, Optimize, QA, Remediation)
-    this.swarm = [...INITIAL_AGENTS];
+    // 1. Load the Core "Hero" Squads first
+    // Initialize with memoryLocation = VRAM by default
+    this.swarm = INITIAL_AGENTS.map(a => ({ ...a, memoryLocation: 'VRAM' }));
     
     // Core Logic Squads (Always needed for OS function) - TOTAL: 6 SQUADS
     const coreSquads: Squad[] = [
@@ -42,13 +48,9 @@ class AgentSwarmOrchestrator {
     ];
     this.squads.push(...coreSquads);
 
-    // 2. Procedurally Generate the remaining Professional Squads to reach 131 total.
-    // Core Squads: 6.
+    // 2. Procedurally Generate the remaining Professional Squads
     // Need Generated: 125.
-    // Total: 131.
     
-    // Enterprise Categories Configuration (Full Industry Spectrum)
-    // Sum of counts MUST equal 125.
     const domainConfigs: { cat: AgentCategory; prefix: string[]; roles: string[]; count: number }[] = [
         // Tech & Dev (19 Teams)
         { 
@@ -127,17 +129,14 @@ class AgentSwarmOrchestrator {
 
     let squadCounter = coreSquads.length + 1; 
     let globalAgentId = 200;
-    let currentPort = 8006; // Start after core squads
+    let currentPort = 8006; 
 
     domainConfigs.forEach(domain => {
         for (let i = 0; i < domain.count; i++) {
-            // Generate Unique Name
             const prefix = domain.prefix[i % domain.prefix.length];
             const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
             const squadName = `${prefix}_${suffix}`;
             const squadId = `SQ_${domain.cat}_${squadCounter++}`;
-            
-            // Assign Port (Virtual allocation)
             const assignedPort = currentPort++;
 
             // Create Leader Agent
@@ -151,6 +150,7 @@ class AgentSwarmOrchestrator {
                 role: `Lead ${domain.roles[0]}`,
                 status: AgentStatus.OFFLINE,
                 enabled: false,
+                memoryLocation: 'VRAM',
                 cpuUsage: 0,
                 ramUsage: 0,
                 lastActive: Date.now(),
@@ -169,6 +169,7 @@ class AgentSwarmOrchestrator {
                 role: domain.roles[1] || domain.roles[0],
                 status: AgentStatus.OFFLINE,
                 enabled: false,
+                memoryLocation: 'VRAM',
                 cpuUsage: 0,
                 ramUsage: 0,
                 lastActive: Date.now()
@@ -182,15 +183,14 @@ class AgentSwarmOrchestrator {
                 role: domain.roles[1] || domain.roles[0],
                 status: AgentStatus.OFFLINE,
                 enabled: false,
+                memoryLocation: 'VRAM',
                 cpuUsage: 0,
                 ramUsage: 0,
                 lastActive: Date.now()
             };
 
-            // Register Agents
             this.swarm.push(leader, worker1, worker2);
 
-            // Register Squad
             this.squads.push({
                 id: squadId,
                 name: squadName.toUpperCase().replace(/_/g, ' '),
@@ -206,6 +206,52 @@ class AgentSwarmOrchestrator {
     console.log(`[ORCHESTRATOR] Generated ${this.squads.length} enterprise squads. Port Range: 8000-${currentPort-1}.`);
   }
 
+  // --- MEMORY PAGING LOGIC (Intelligent Offloading) ---
+  public balanceMemoryLoad(currentVramUsage: number) {
+      if (!this.smartPagingEnabled) {
+          // If paging disabled, restore everyone to VRAM (if enabled)
+          this.swarm.forEach(a => { if(a.enabled) a.memoryLocation = 'VRAM'; });
+          return;
+      }
+
+      const VRAM_THRESHOLD = 3500; // MB
+      
+      // 1. Identify Candidates for RAM Offloading
+      // Priority for VRAM: CORE > STRATEGY > Active Leaders > Active Workers > Inactive
+      
+      if (currentVramUsage > VRAM_THRESHOLD) {
+          // Offload Strategy: Move least critical agents to RAM
+          // Categories to offload first: EDU, RETAIL, SUPPORT, MARKETING workers
+          const offloadCandidates = this.swarm.filter(a => 
+              a.enabled && 
+              a.memoryLocation === 'VRAM' &&
+              a.category !== 'CORE' && 
+              a.category !== 'OPS' &&
+              a.category !== 'CYBERSEC' &&
+              a.category !== 'DATA'
+          );
+
+          // Sort by role (Workers first)
+          offloadCandidates.sort((a, b) => {
+              if (a.roleType === AgentRoleType.WORKER && b.roleType === AgentRoleType.LEADER) return -1;
+              if (a.roleType === AgentRoleType.LEADER && b.roleType === AgentRoleType.WORKER) return 1;
+              return 0;
+          });
+
+          // Move top candidates to RAM until VRAM estimate improves
+          // (In this tick we just move a batch to simulate progressive offloading)
+          offloadCandidates.slice(0, 10).forEach(a => {
+              a.memoryLocation = 'RAM';
+          });
+      } else if (currentVramUsage < 2500) {
+          // Restore to VRAM if space available (Performance Boost)
+          const restoreCandidates = this.swarm.filter(a => a.enabled && a.memoryLocation === 'RAM');
+          restoreCandidates.slice(0, 10).forEach(a => {
+              a.memoryLocation = 'VRAM';
+          });
+      }
+  }
+
   public activateSquadsForStage(stage: WorkflowStage) {
     if (this.currentMode === SystemMode.ULTRA || this.currentMode === SystemMode.CUSTOM || this.currentMode === SystemMode.PRESET) return;
 
@@ -219,8 +265,8 @@ class AgentSwarmOrchestrator {
       [WorkflowStage.REMEDIATION]: ['DEV', 'DATA'],
       [WorkflowStage.OPTIMIZATION]: ['OPS', 'DATA', 'CYBERSEC'], 
       [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE'],
-      [WorkflowStage.META_ANALYSIS]: ['CORE', 'DATA'], // Architect + Data for analysis
-      [WorkflowStage.ADAPTATION_QA]: ['LEGAL', 'CORE'] // Rules Lawyer + Orchestrator
+      [WorkflowStage.META_ANALYSIS]: ['CORE', 'DATA'], 
+      [WorkflowStage.ADAPTATION_QA]: ['LEGAL', 'CORE']
     };
 
     const activeCategories = mapping[stage] || [];
@@ -249,7 +295,6 @@ class AgentSwarmOrchestrator {
     const squad = this.squads.find(s => s.id === squadId);
     if (!squad) return;
 
-    // PROTECTION: CORE Squads can never be disabled manually
     if (squad.category === 'CORE' && !enabled) {
         enabled = true;
     }
@@ -261,6 +306,7 @@ class AgentSwarmOrchestrator {
           agent.status = AgentStatus.OFFLINE;
           agent.ramUsage = 0;
           agent.cpuUsage = 0;
+          agent.memoryLocation = 'VRAM'; // Reset to default on sleep
       } else {
           agent.status = Math.random() > 0.5 ? AgentStatus.IDLE : AgentStatus.THINKING;
           agent.ramUsage = 50 + Math.random() * 50; 
@@ -277,7 +323,6 @@ class AgentSwarmOrchestrator {
     this.currentMode = SystemMode.PRESET;
     this.currentBusinessPreset = preset;
     
-    // Enterprise Business Presets Logic
     const businessMap: Record<BusinessType, AgentCategory[]> = {
         'GENERAL': ['CORE', 'DEV', 'DATA', 'OPS', 'MARKETING', 'LEGAL', 'FINANCE', 'CYBERSEC'], 
         'MARKETING_AGENCY': ['CORE', 'MARKETING', 'DATA', 'OPS', 'DEV'],
@@ -328,7 +373,6 @@ class AgentSwarmOrchestrator {
   }
 
   private applyMode(mode: SystemMode) {
-    // Reset non-core first
     if (mode !== SystemMode.CUSTOM && mode !== SystemMode.PRESET) {
         this.squads.forEach(s => {
             if (s.category !== 'CORE') this.setSquadState(s.id, false);
@@ -337,7 +381,6 @@ class AgentSwarmOrchestrator {
 
     switch (mode) {
       case SystemMode.ECO:
-        // Activate baseline
         this.squads.filter(s => s.category === 'DEV').slice(0, 3).forEach(s => this.setSquadState(s.id, true));
         this.squads.filter(s => s.category === 'OPS').slice(0, 3).forEach(s => this.setSquadState(s.id, true));
         break;
@@ -384,7 +427,6 @@ class AgentSwarmOrchestrator {
        }
     });
 
-    // Simulate Core Service Health Fluctuations
     if (Math.random() > 0.9) {
         const svc = this.coreServices[Math.floor(Math.random() * this.coreServices.length)];
         svc.latency = Math.max(1, svc.latency + (Math.random() * 4 - 2));

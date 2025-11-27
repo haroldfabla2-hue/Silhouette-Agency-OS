@@ -138,6 +138,7 @@ export interface AutonomousConfig {
   enabled: boolean;
   mode24_7: boolean; // Continuous loop
   allowEvolution: boolean; // Allow system to rewrite its own rules
+  smartPaging: boolean; // NEW: Enable VRAM to RAM offloading
   maxRunTimeHours: number; // 0 = infinite
   maxDailyTokens: number; // Cost safety
   safeCleanup: boolean; // Protect "SACRED" files
@@ -159,6 +160,7 @@ export interface Agent {
   role: string; // Specific job title
   status: AgentStatus;
   enabled: boolean; 
+  memoryLocation: 'VRAM' | 'RAM'; // NEW: Physical location of the agent context
   cpuUsage: number; 
   ramUsage: number; 
   lastActive: number;
@@ -188,6 +190,8 @@ export interface ServiceStatus {
 
 export interface SystemMetrics {
   activeAgents: number;
+  agentsInVram: number; // NEW
+  agentsInRam: number; // NEW
   introspectionDepth: number;
   awarenessScore: number; 
   fps: number;

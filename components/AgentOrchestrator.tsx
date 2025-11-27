@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agent, AgentStatus, Squad, AgentRoleType, WorkflowStage, AgentCategory } from '../types';
-import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase, CheckCircle2, XCircle, Stethoscope, ShoppingBag, Factory, Lightbulb, GraduationCap } from 'lucide-react';
+import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase, CheckCircle2, XCircle, Stethoscope, ShoppingBag, Factory, Lightbulb, GraduationCap, HardDrive, Cpu } from 'lucide-react';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
 
@@ -186,9 +186,17 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
 
                         {/* Leader Section */}
                         <div className="p-3 border-b border-slate-800/50 bg-gradient-to-b from-transparent to-black/20">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase mb-2 flex items-center gap-1">
-                                <Crown size={9} className="text-yellow-500" /> Commander
-                            </p>
+                            <div className="flex justify-between items-center mb-2">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase flex items-center gap-1">
+                                    <Crown size={9} className="text-yellow-500" /> Commander
+                                </p>
+                                {/* Memory Location Indicator */}
+                                {leader && leader.enabled && (
+                                    <div className={`text-[8px] px-1 rounded font-bold border ${leader.memoryLocation === 'VRAM' ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' : 'bg-orange-900/20 text-orange-400 border-orange-500/30'}`}>
+                                        {leader.memoryLocation}
+                                    </div>
+                                )}
+                            </div>
                             {leader ? (
                             <div 
                                 onClick={() => setSelectedAgent(leader)}
@@ -213,10 +221,14 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                                 {workers.map((w, i) => (
                                     <div 
                                         key={w.id} 
-                                        className={`w-4 h-4 rounded-full border border-slate-900 flex items-center justify-center text-[8px] text-black font-bold ${w.enabled ? 'bg-cyan-500' : 'bg-slate-700'}`}
-                                        title={w.name}
+                                        className={`w-4 h-4 rounded-full border border-slate-900 flex items-center justify-center text-[8px] text-black font-bold relative group/worker ${w.enabled ? 'bg-cyan-500' : 'bg-slate-700'}`}
+                                        title={`${w.name} (${w.memoryLocation})`}
                                     >
                                         {i + 1}
+                                        {/* RAM Indicator Dot */}
+                                        {w.enabled && w.memoryLocation === 'RAM' && (
+                                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full border border-black" />
+                                        )}
                                     </div>
                                 ))}
                              </div>
@@ -257,6 +269,21 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                   </p>
                 </div>
                 
+                {/* Physical Location Card */}
+                <div className={`p-3 rounded border ${selectedAgent.memoryLocation === 'VRAM' ? 'bg-purple-900/20 border-purple-500/50' : 'bg-orange-900/20 border-orange-500/50'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                        {selectedAgent.memoryLocation === 'VRAM' ? <Cpu size={14} className="text-purple-400" /> : <HardDrive size={14} className="text-orange-400" />}
+                        <span className={`text-xs font-bold ${selectedAgent.memoryLocation === 'VRAM' ? 'text-purple-400' : 'text-orange-400'}`}>
+                            PHYSICAL LOCATION: {selectedAgent.memoryLocation}
+                        </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                        {selectedAgent.memoryLocation === 'VRAM' 
+                            ? "High-speed tensor execution. Low latency." 
+                            : "Offloaded to System RAM. High bus latency detected."}
+                    </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-slate-950 rounded border border-slate-800">
                     <span className="text-xs text-slate-500 block">RAM Alloc</span>
@@ -280,6 +307,9 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                       {selectedAgent.enabled && (
                           <>
                             <p className="text-cyan-400">{`> status: ONLINE`}</p>
+                            <p className={selectedAgent.memoryLocation === 'VRAM' ? 'text-purple-400' : 'text-orange-400'}>
+                                {`> memory_context: ${selectedAgent.memoryLocation}`}
+                            </p>
                             <p>{`> receiving task packet...`}</p>
                             <p>{`> processing...`}</p>
                           </>
