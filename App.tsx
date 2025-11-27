@@ -8,13 +8,17 @@ import TerminalLog from './components/TerminalLog';
 import SystemControl from './components/SystemControl'; 
 import ContinuumMemoryExplorer from './components/ContinuumMemoryExplorer';
 import ChatWidget from './components/ChatWidget'; 
-import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer, UserRole } from './types';
+import Settings from './components/Settings'; 
+import ProtocolOverlay from './components/ProtocolOverlay'; // New Integration
+import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer, UserRole, SystemProtocol, MorphPayload } from './types';
 import { MOCK_PROJECTS, SYSTEM_LOGS, DEFAULT_AUTONOMY_CONFIG } from './constants';
 import { orchestrator } from './services/orchestrator';
 import { continuum } from './services/continuumMemory';
 import { workflowEngine } from './services/workflowEngine';
 import { introspection } from './services/introspectionEngine';
 import { consciousness } from './services/consciousnessEngine';
+import { settingsManager } from './services/settingsManager';
+import { systemBus } from './services/systemBus'; // Connect Bus
 
 // Extend Window interface for non-standard Chrome memory API
 declare global {
@@ -32,6 +36,40 @@ const App: React.FC = () => {
   const [autonomyConfig, setAutonomyConfig] = useState<AutonomousConfig>(DEFAULT_AUTONOMY_CONFIG);
   const [liveThoughts, setLiveThoughts] = useState<string[]>([]);
   
+  // Settings Integration
+  const [appSettings, setAppSettings] = useState(settingsManager.getSettings());
+  
+  // Dynamic UI State (The Morphing Aspect)
+  const [uiOverride, setUiOverride] = useState<MorphPayload | null>(null);
+
+  // Listen for System Bus Events to trigger React updates
+  useEffect(() => {
+      const u1 = systemBus.subscribe(SystemProtocol.UI_REFRESH, () => {
+          setAgents([...orchestrator.getAgents()]);
+      });
+      
+      const u2 = systemBus.subscribe(SystemProtocol.INTERFACE_MORPH, (event) => {
+          const payload = event.payload as MorphPayload;
+          setUiOverride(payload);
+          // Revert after 5 seconds to avoid stuck states unless re-triggered
+          setTimeout(() => setUiOverride(null), 5000);
+      });
+
+      return () => { u1(); u2(); };
+  }, []);
+
+  // Poll for settings changes (e.g. density or theme)
+  useEffect(() => {
+      const interval = setInterval(() => {
+          const currentSettings = settingsManager.getSettings();
+          // Simple check to avoid deep comparison overhead every frame
+          if (currentSettings.theme.density !== appSettings.theme.density || currentSettings.theme.mode !== appSettings.theme.mode) {
+              setAppSettings(currentSettings);
+          }
+      }, 1000);
+      return () => clearInterval(interval);
+  }, [appSettings.theme.density, appSettings.theme.mode]);
+
   const [metrics, setMetrics] = useState<SystemMetrics>({
     activeAgents: 0,
     agentsInVram: 0,
@@ -212,6 +250,8 @@ const App: React.FC = () => {
         />;
       case 'memory':
         return <ContinuumMemoryExplorer />;
+      case 'settings':
+        return <Settings />;
       case 'terminal':
         return <TerminalLog logs={logs} />;
       default:
@@ -223,11 +263,21 @@ const App: React.FC = () => {
     }
   };
 
+  // DYNAMIC STYLING ENGINE
+  // overrides appSettings based on uiOverride (AI intent)
+  const mode = uiOverride?.mode === 'DEFENSE' ? 'dark' : (uiOverride?.mode === 'FLOW' ? 'cyberpunk' : appSettings.theme.mode);
+  const density = uiOverride?.density || appSettings.theme.density;
+  
+  // Visual cues for modes
+  const borderClass = uiOverride?.mode === 'DEFENSE' ? 'border-4 border-red-900' : '';
+  const paddingClass = density === 'compact' ? 'p-4' : 'p-8';
+
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden relative">
+    <div className={`flex h-screen bg-slate-950 overflow-hidden relative ${mode} ${borderClass}`}>
+      <ProtocolOverlay /> {/* THE VISUAL PROTOCOL LAYER */}
       <ChatWidget currentUserRole={currentUserRole} onChangeRole={setCurrentUserRole} />
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 p-8 overflow-y-auto relative">
+      <main className={`flex-1 ${paddingClass} overflow-y-auto relative`}>
          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 opacity-50"></div>
          {renderContent()}
       </main>

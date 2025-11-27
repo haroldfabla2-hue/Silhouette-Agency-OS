@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LayoutDashboard, Users, BrainCircuit, Database, Activity, Settings, Terminal, Shield, Sliders } from 'lucide-react';
 
@@ -9,10 +10,11 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Command Center' },
-    { id: 'system_control', icon: Sliders, label: 'System Control' }, // New Tab
+    { id: 'system_control', icon: Sliders, label: 'System Control' }, 
     { id: 'orchestrator', icon: Users, label: 'Agent Swarm (131)' },
     { id: 'introspection', icon: BrainCircuit, label: 'Introspection Hub' },
     { id: 'memory', icon: Database, label: 'Continuum Memory' },
+    { id: 'settings', icon: Settings, label: 'Settings & Config' }, // Updated
     { id: 'terminal', icon: Terminal, label: 'System Logs' },
   ];
 

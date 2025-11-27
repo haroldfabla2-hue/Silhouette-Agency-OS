@@ -1,6 +1,7 @@
 
-import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory, BusinessType, ServiceStatus } from "../types";
+import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory, BusinessType, ServiceStatus, SystemProtocol } from "../types";
 import { INITIAL_AGENTS } from "../constants";
+import { systemBus } from "./systemBus"; // Connect to Bus
 
 // The "Swarm" Manager V4.0 (Enterprise Architecture Complete)
 // Generates and Manages exactly 131 Specialized Squads across all industry verticals.
@@ -26,6 +27,50 @@ class AgentSwarmOrchestrator {
   constructor() {
     this.initializeSwarm();
     this.applyMode(SystemMode.ECO); 
+    
+    // Listen for Expansion Protocols from the AI
+    systemBus.subscribe(SystemProtocol.SQUAD_EXPANSION, (event) => {
+        this.handleDynamicExpansion(event.payload);
+    });
+  }
+
+  // --- DYNAMIC EXPANSION PROTOCOL ---
+  private handleDynamicExpansion(payload: { name: string, category: AgentCategory, role: string }) {
+      console.log(`[ORCHESTRATOR] Executing Expansion Protocol: ${payload.name}`);
+      
+      const newSquadId = `SQ_DYN_${Date.now()}`;
+      const leaderId = `agt_dyn_${Date.now()}`;
+      
+      // Create new agents dynamically
+      const leader: Agent = {
+          id: leaderId,
+          name: `${payload.name} Lead`,
+          teamId: newSquadId,
+          category: payload.category,
+          roleType: AgentRoleType.LEADER,
+          role: payload.role,
+          status: AgentStatus.WORKING,
+          enabled: true,
+          memoryLocation: 'VRAM',
+          cpuUsage: 10,
+          ramUsage: 100,
+          lastActive: Date.now()
+      };
+      
+      // Add to swarm
+      this.swarm.unshift(leader); // Add to top
+      this.squads.unshift({
+          id: newSquadId,
+          name: payload.name.toUpperCase(),
+          leaderId: leaderId,
+          members: [leaderId],
+          category: payload.category,
+          active: true,
+          port: 9000 + this.squads.length
+      });
+      
+      // Notify System
+      systemBus.emit(SystemProtocol.UI_REFRESH, { source: 'ORCHESTRATOR', message: 'Swarm Topology Updated' });
   }
 
   public setSmartPaging(enabled: boolean) {
@@ -243,12 +288,18 @@ class AgentSwarmOrchestrator {
           offloadCandidates.slice(0, 10).forEach(a => {
               a.memoryLocation = 'RAM';
           });
+          
+          systemBus.emit(SystemProtocol.RESOURCE_SHUNT, { message: 'Offloading 10 Agents to RAM' });
+
       } else if (currentVramUsage < 2500) {
           // Restore to VRAM if space available (Performance Boost)
           const restoreCandidates = this.swarm.filter(a => a.enabled && a.memoryLocation === 'RAM');
-          restoreCandidates.slice(0, 10).forEach(a => {
-              a.memoryLocation = 'VRAM';
-          });
+          if (restoreCandidates.length > 0) {
+              restoreCandidates.slice(0, 10).forEach(a => {
+                  a.memoryLocation = 'VRAM';
+              });
+              systemBus.emit(SystemProtocol.RESOURCE_SHUNT, { message: 'Restoring 10 Agents to VRAM' });
+          }
       }
   }
 

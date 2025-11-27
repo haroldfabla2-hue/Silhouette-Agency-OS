@@ -26,6 +26,31 @@ export enum WorkflowStage {
   IDLE = 'SYSTEM_IDLE'
 }
 
+// NEW: SYSTEM PROTOCOLS
+export enum SystemProtocol {
+  UI_REFRESH = 'PROTOCOL_UI_REFRESH',         // Force re-render of components
+  SQUAD_EXPANSION = 'PROTOCOL_SQUAD_EXPANSION', // Inject new agents at runtime
+  CONFIG_MUTATION = 'PROTOCOL_CONFIG_MUTATION', // Change settings dynamically
+  SECURITY_LOCKDOWN = 'PROTOCOL_SECURITY_LOCKDOWN', // Emergency State
+  MEMORY_FLUSH = 'PROTOCOL_MEMORY_FLUSH',      // Transcendence trigger
+  INTERFACE_MORPH = 'PROTOCOL_INTERFACE_MORPH', // AI changes UI theme/density
+  RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT'    // Visualizing VRAM->RAM moves
+}
+
+export interface ProtocolEvent {
+  type: SystemProtocol;
+  payload: any;
+  timestamp: number;
+  initiator: string; // Agent ID
+  id?: string; // Unique event ID for stacking
+}
+
+export interface MorphPayload {
+    mode: 'DEFENSE' | 'FLOW' | 'NEUTRAL';
+    accentColor?: string;
+    density?: 'compact' | 'comfortable';
+}
+
 export enum MemoryTier {
   ULTRA_SHORT = 'ULTRA_SHORT', // 5 mins (RAM)
   SHORT = 'SHORT',             // 30 mins (RAM)
@@ -97,7 +122,8 @@ export type AgentCategory =
   | 'MFG'
   | 'ENERGY'
   | 'EDU'
-  | 'INSTALL'; // New Category for Installation Squad
+  | 'INSTALL'
+  | 'INTEGRATION'; 
 
 // --- INSTALLATION & RBAC TYPES ---
 
@@ -131,6 +157,55 @@ export interface InstallationState {
     openai?: string;
     anthropic?: string;
   };
+}
+
+// --- SETTINGS & CONFIGURATION TYPES ---
+
+export interface IntegrationSchema {
+  id: string;
+  name: string;
+  description: string;
+  category: 'AI' | 'DATABASE' | 'MESSAGING' | 'CLOUD' | 'DEV' | 'OTHER';
+  fields: {
+    key: string;
+    label: string;
+    type: 'text' | 'password' | 'url';
+    required: boolean;
+    placeholder?: string;
+  }[];
+  isConnected: boolean;
+  lastSync?: number;
+}
+
+export interface ThemeConfig {
+  mode: 'dark' | 'light' | 'cyberpunk' | 'corporate';
+  accentColor: string;
+  reduceMotion: boolean;
+  density: 'compact' | 'comfortable';
+}
+
+export interface PermissionMatrix {
+  [role: string]: {
+    canViewDashboard: boolean;
+    canControlSwarm: boolean;
+    canAccessMemory: boolean;
+    canEditSettings: boolean;
+    canExecuteTasks: boolean;
+  }
+}
+
+export interface SettingsState {
+  theme: ThemeConfig;
+  integrations: Record<string, Record<string, string>>; // { serviceId: { key: value } }
+  registeredIntegrations: IntegrationSchema[];
+  permissions: PermissionMatrix;
+  notifications: {
+    email: boolean;
+    slack: boolean;
+    browser: boolean;
+    securityAlerts: boolean;
+  };
+  language: 'en' | 'es' | 'fr' | 'jp';
 }
 
 // Data Structures
