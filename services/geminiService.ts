@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { IntrospectionLayer, AgentRoleType, WorkflowStage } from "../types";
 import { introspection } from "./introspectionEngine";
@@ -32,8 +31,8 @@ export const generateAgentResponse = async (
     
     // NEW: Retrieve System Map for Admin Context
     let systemMapContext = "";
-    if (agentName.includes("Orchestrator")) {
-        // If the agent is the Orchestrator/Admin, look for the System Map
+    if (agentName.includes("Orchestrator") || category === 'DEV' || category === 'INTEGRATION') {
+        // If the agent is the Orchestrator or a Developer, look for the System Map
         const mapNodes = memories.filter(m => m.tags.includes('SYSTEM_MAP'));
         if (mapNodes.length > 0) {
             systemMapContext = `\n[KNOWN SYSTEM ARCHITECTURE]:\n${mapNodes[0].content}\n`;
@@ -131,6 +130,31 @@ export const generateAgentResponse = async (
         `;
     }
 
+    // F. OMNIPOTENT DEVELOPER (Active Coding Protocol)
+    else if (category === 'DEV' || category === 'INTEGRATION') {
+        systemInstruction += `\n
+        PROTOCOL: OMNIPOTENT_DEVELOPER
+        ROLE: Senior Principal Engineer.
+        
+        CAPABILITIES:
+        - You have access to the file system context via [KNOWN SYSTEM ARCHITECTURE].
+        - You can propose FILE MODIFICATIONS.
+        
+        RULES:
+        1. PRECISE SYNTAX: Do not use placeholders like "// ...rest of code". Write complete, functional code.
+        2. PRESERVE CONTEXT: If modifying a file, respect existing imports and style.
+        3. SAFETY FIRST: Do not delete critical configuration files unless explicitly instructed.
+        
+        IF THE USER ASKS TO MODIFY OR CREATE A FILE:
+        Output the code block clearly marked with the filename.
+        Example:
+        FILE: components/NewButton.tsx
+        \`\`\`typescript
+        // code here
+        \`\`\`
+        `;
+    }
+
     // 3. Construct the Payload
     let userMessage = "";
     
@@ -151,7 +175,7 @@ export const generateAgentResponse = async (
       ],
       config: {
          // High temperature for creative agents, low for logic/optimizers
-         temperature: category === 'MARKETING' ? 0.8 : 0.3,
+         temperature: category === 'MARKETING' ? 0.8 : 0.2,
       }
     });
 

@@ -16,7 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' })); // Increased limit for large file processing
 
 // --- HEADLESS GAME LOOP ---
 setInterval(() => {
@@ -34,47 +34,56 @@ const validateApiKey = (req: express.Request, res: express.Response, next: expre
     next();
 };
 
+// --- CRITICAL FILE PROTECTION ---
+// The AI cannot modify these files without explicit 'GOD_MODE' override flag.
+const PROTECTED_FILES = [
+    'server/index.ts',
+    'services/continuumMemory.ts',
+    'services/orchestrator.ts',
+    'services/introspectionEngine.ts'
+];
+
 // --- ENDPOINT: REAL PROJECT SCANNING ---
-// Allows the "Code Scanner" agent to actually read the directory structure
 app.post('/v1/system/scan', validateApiKey, async (req, res) => {
     try {
-        const rootDir = (process as any).cwd(); // Root of where server is running
+        const rootDir = (process as any).cwd(); 
         
-        // Helper to crawl directory
         const crawl = (dir: string, depth: number = 0): string[] => {
-            if (depth > 3) return []; // Safety limit
+            if (depth > 5) return []; 
             let results: string[] = [];
-            const list = fs.readdirSync(dir);
-            list.forEach(file => {
-                const filePath = path.join(dir, file);
-                const stat = fs.statSync(filePath);
-                if (stat && stat.isDirectory()) {
-                    if (file !== 'node_modules' && file !== '.git') {
-                        results = results.concat(crawl(filePath, depth + 1));
+            try {
+                const list = fs.readdirSync(dir);
+                list.forEach(file => {
+                    const filePath = path.join(dir, file);
+                    const stat = fs.statSync(filePath);
+                    if (stat && stat.isDirectory()) {
+                        if (file !== 'node_modules' && file !== '.git' && file !== 'dist' && file !== 'build') {
+                            results = results.concat(crawl(filePath, depth + 1));
+                        }
+                    } else {
+                        // Only relevant code files
+                        if (/\.(ts|tsx|js|jsx|json|css|py|html)$/.test(file)) {
+                            results.push(filePath.replace(rootDir, ''));
+                        }
                     }
-                } else {
-                    results.push(filePath.replace(rootDir, ''));
-                }
-            });
+                });
+            } catch (e) {
+                // Ignore access errors
+            }
             return results;
         };
 
         const files = crawl(rootDir);
         
-        // Separate by type
-        const frontend = files.filter(f => f.endsWith('.tsx') || f.endsWith('.jsx'));
-        const backend = files.filter(f => f.endsWith('.ts') && !f.endsWith('.tsx'));
-        
         const map = {
-            frontendComponents: frontend,
-            backendEndpoints: backend, // In a real deeper scan, we'd parse AST
-            databaseSchema: ['MemoryNode', 'Agent'], // Mocked for simplicity here
-            scanTimestamp: Date.now()
+            scanTimestamp: Date.now(),
+            fileCount: files.length,
+            structure: files
         };
 
-        // Store this real map in continuum for the Orchestrator
+        // Store this real map in continuum
         continuum.store(
-            `[REAL SYSTEM SCAN] \n${JSON.stringify(map)}`, 
+            `[SYSTEM ARCHITECTURE MAP] Files: ${files.length}. \nStructure cached.`, 
             'DEEP' as any, 
             ['SACRED', 'SYSTEM_MAP']
         );
@@ -87,8 +96,104 @@ app.post('/v1/system/scan', validateApiKey, async (req, res) => {
     }
 });
 
-// --- EXISTING ENDPOINTS ---
+// --- ENDPOINT: READ FILE CONTENT (CONTEXT LOADING) ---
+app.post('/v1/system/read', validateApiKey, async (req, res) => {
+    const { filePath } = req.body;
+    try {
+        const rootDir = (process as any).cwd();
+        const fullPath = path.join(rootDir, filePath);
+        
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: "File not found" });
+        
+        const content = fs.readFileSync(fullPath, 'utf-8');
+        res.json({ success: true, content });
+    } catch (e) {
+        res.status(500).json({ error: "Read failed" });
+    }
+});
 
+// --- ENDPOINT: ATOMIC FILE WRITING (WITH BACKUP) ---
+app.patch('/v1/system/file', validateApiKey, async (req, res) => {
+    const { filePath, content, forceOverride } = req.body;
+    
+    if (!filePath || !content) {
+        return res.status(400).json({ error: "Missing filePath or content" });
+    }
+
+    try {
+        const rootDir = (process as any).cwd();
+        const fullPath = path.join(rootDir, filePath); // Ensure relative to project root
+
+        // 1. Security Check
+        const isProtected = PROTECTED_FILES.some(pf => fullPath.includes(pf));
+        if (isProtected && !forceOverride) {
+            return res.status(403).json({ 
+                error: "PROTECTED FILE ACCESS DENIED", 
+                message: "Self-preservation protocol active. Use forceOverride to modify core kernel." 
+            });
+        }
+
+        console.log(`[ORCHESTRATOR] Applying atomic patch to: ${filePath}`);
+        
+        // 2. Atomic Backup
+        const backupPath = `${fullPath}.bak.${Date.now()}`;
+        if (fs.existsSync(fullPath)) {
+            fs.copyFileSync(fullPath, backupPath);
+        } else {
+            // Ensure directory exists if creating new file
+            const dir = path.dirname(fullPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // 3. Write Operation
+        fs.writeFileSync(fullPath, content, 'utf8');
+
+        // 4. Log to Continuum
+        continuum.store(
+            `[CODE MUTATION] Modified: ${filePath}. Backup: ${path.basename(backupPath)}`, 
+            'SHORT' as any, 
+            ['audit', 'code-change', 'recovery-point']
+        );
+
+        res.json({ 
+            success: true, 
+            path: filePath, 
+            backupId: path.basename(backupPath),
+            status: "PATCH_APPLIED" 
+        });
+
+    } catch (error) {
+        console.error("File Write Error", error);
+        res.status(500).json({ error: "Failed to write file." });
+    }
+});
+
+// --- ENDPOINT: ROLLBACK (SELF-HEALING) ---
+app.post('/v1/system/rollback', validateApiKey, async (req, res) => {
+    const { filePath, backupId } = req.body;
+    
+    try {
+        const rootDir = (process as any).cwd();
+        const fullPath = path.join(rootDir, filePath);
+        const backupPath = path.join(path.dirname(fullPath), backupId);
+
+        if (!fs.existsSync(backupPath)) {
+            return res.status(404).json({ error: "Backup file not found" });
+        }
+
+        console.log(`[ORCHESTRATOR] EMERGENCY ROLLBACK: ${filePath}`);
+        
+        // Restore
+        fs.copyFileSync(backupPath, fullPath);
+        
+        res.json({ success: true, message: "System state restored to backup point." });
+
+    } catch (e) {
+        res.status(500).json({ error: "Rollback failed" });
+    }
+});
+
+// --- EXISTING CHAT ENDPOINT ---
 app.post('/v1/chat/completions', validateApiKey, async (req, res) => {
     const { messages } = req.body;
     const userMessage = messages[messages.length - 1].content;
@@ -167,7 +272,8 @@ app.listen(PORT, () => {
     > Status: ONLINE
     > Port: ${PORT}
     > Auth: Bearer Token Required
-    > Capabilities: File System Access (Scan Enabled)
+    > Capabilities: ATOMIC FILESYSTEM ACCESS (R/W)
+    > Protection: CORE KERNEL SHIELD ACTIVE
     
     Ready to integrate with external applications.
     `);
