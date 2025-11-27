@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -37,10 +38,9 @@ const validateApiKey = (req: express.Request, res: express.Response, next: expre
 // --- CRITICAL FILE PROTECTION ---
 // The AI cannot modify these files without explicit 'GOD_MODE' override flag.
 const PROTECTED_FILES = [
-    'server/index.ts',
-    'services/continuumMemory.ts',
-    'services/orchestrator.ts',
-    'services/introspectionEngine.ts'
+    'server/index.ts', // Self-preservation
+    'services/continuumMemory.ts', // Memory integrity
+    'services/introspectionEngine.ts' // Consciousness integrity
 ];
 
 // --- ENDPOINT: REAL PROJECT SCANNING ---
@@ -125,11 +125,17 @@ app.patch('/v1/system/file', validateApiKey, async (req, res) => {
         const fullPath = path.join(rootDir, filePath); // Ensure relative to project root
 
         // 1. Security Check
+        // Normalize path to prevent directory traversal attacks
+        const normalizedPath = path.normalize(fullPath);
+        if (!normalizedPath.startsWith(rootDir)) {
+             return res.status(403).json({ error: "ACCESS DENIED", message: "Cannot modify files outside root directory." });
+        }
+
         const isProtected = PROTECTED_FILES.some(pf => fullPath.includes(pf));
         if (isProtected && !forceOverride) {
             return res.status(403).json({ 
                 error: "PROTECTED FILE ACCESS DENIED", 
-                message: "Self-preservation protocol active. Use forceOverride to modify core kernel." 
+                message: "Self-preservation protocol active. Core kernel files are read-only." 
             });
         }
 
@@ -145,8 +151,10 @@ app.patch('/v1/system/file', validateApiKey, async (req, res) => {
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         }
 
-        // 3. Write Operation
-        fs.writeFileSync(fullPath, content, 'utf8');
+        // 3. Write Operation (Atomic simulation via temp file)
+        const tempPath = `${fullPath}.tmp`;
+        fs.writeFileSync(tempPath, content, 'utf8');
+        fs.renameSync(tempPath, fullPath);
 
         // 4. Log to Continuum
         continuum.store(
@@ -175,13 +183,28 @@ app.post('/v1/system/rollback', validateApiKey, async (req, res) => {
     try {
         const rootDir = (process as any).cwd();
         const fullPath = path.join(rootDir, filePath);
-        const backupPath = path.join(path.dirname(fullPath), backupId);
+        
+        // If backupId is provided, use it. Otherwise find the latest backup.
+        let backupPath = '';
+        
+        if (backupId) {
+            backupPath = path.join(path.dirname(fullPath), backupId);
+        } else {
+            // Find latest backup
+            const dir = path.dirname(fullPath);
+            const files = fs.readdirSync(dir);
+            const backups = files.filter(f => f.startsWith(path.basename(filePath) + '.bak.'));
+            if (backups.length > 0) {
+                backups.sort(); // Timestamp sort
+                backupPath = path.join(dir, backups[backups.length - 1]);
+            }
+        }
 
-        if (!fs.existsSync(backupPath)) {
+        if (!backupPath || !fs.existsSync(backupPath)) {
             return res.status(404).json({ error: "Backup file not found" });
         }
 
-        console.log(`[ORCHESTRATOR] EMERGENCY ROLLBACK: ${filePath}`);
+        console.log(`[ORCHESTRATOR] EMERGENCY ROLLBACK: ${filePath} -> ${path.basename(backupPath)}`);
         
         // Restore
         fs.copyFileSync(backupPath, fullPath);

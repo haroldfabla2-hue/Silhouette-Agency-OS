@@ -4,10 +4,10 @@ import { orchestrator } from "./orchestrator";
 import { continuum } from "./continuumMemory";
 import { generateAgentResponse } from "./geminiService";
 import { introspection } from "./introspectionEngine";
-import { MOCK_PROJECTS } from "../constants";
+import { MOCK_PROJECTS, DEFAULT_API_CONFIG } from "../constants";
 
 // The Workflow Engine coordinates the high-level intent of the agency.
-// V4.2 Update: Implements "The Crucible", Circuit Breaker, and Dynamic Self-Evolution
+// V4.2 Update: Implements "The Crucible", Circuit Breaker, Dynamic Self-Evolution, AND ACTIVE CODING
 
 class WorkflowEngine {
   private currentStage: WorkflowStage = WorkflowStage.IDLE;
@@ -293,6 +293,9 @@ class WorkflowEngine {
           
           this.pipelineData.draftResult = response.output;
           this.remediationAttempts++;
+          
+          // Check for Code Mutation Protocol
+          await this.checkAndApplyCodeMutation(response.output);
 
           this.transitionTo(WorkflowStage.QA_AUDIT);
 
@@ -326,6 +329,9 @@ class WorkflowEngine {
           this.tokenUsage += response.usage;
           this.lastThoughts = response.thoughts;
 
+          // Check for Code Mutation Protocol
+          await this.checkAndApplyCodeMutation(response.output);
+
           if (this.currentStage === WorkflowStage.INTENT) this.pipelineData.intent = response.output;
           if (this.currentStage === WorkflowStage.PLANNING) this.pipelineData.plan = response.output;
           if (this.currentStage === WorkflowStage.EXECUTION) this.pipelineData.draftResult = response.output;
@@ -337,6 +343,44 @@ class WorkflowEngine {
           this.recordFailure();
       } finally {
           this.isProcessing = false;
+      }
+  }
+
+  // --- ACTIVE CODING: Apply Changes to Server ---
+  private async checkAndApplyCodeMutation(output: string) {
+      // Regex to find <<<FILE: path>>> ... <<<END>>>
+      const fileRegex = /<<<FILE:\s*(.+?)>>>([\s\S]*?)<<<END>>>/g;
+      let match;
+      
+      while ((match = fileRegex.exec(output)) !== null) {
+          const filePath = match[1].trim();
+          const content = match[2].trim();
+          
+          console.log(`[WORKFLOW] Detected file mutation request for: ${filePath}`);
+          
+          // Execute Patch via Server API
+          try {
+              const res = await fetch('http://localhost:3000/v1/system/file', {
+                  method: 'PATCH',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${DEFAULT_API_CONFIG.apiKey}`
+                  },
+                  body: JSON.stringify({
+                      filePath: filePath,
+                      content: content
+                  })
+              });
+              
+              const result = await res.json();
+              if (result.success) {
+                  continuum.store(`[SUCCESS] Patched file: ${filePath}`, 'SHORT' as any, ['code', 'mutation', 'success']);
+              } else {
+                  continuum.store(`[ERROR] Failed to patch file: ${filePath}. Reason: ${result.error}`, 'SHORT' as any, ['code', 'mutation', 'error']);
+              }
+          } catch (e) {
+              console.error("Failed to connect to backend for file patch.", e);
+          }
       }
   }
 

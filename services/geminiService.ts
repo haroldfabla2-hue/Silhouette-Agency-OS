@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { IntrospectionLayer, AgentRoleType, WorkflowStage } from "../types";
 import { introspection } from "./introspectionEngine";
@@ -31,7 +32,7 @@ export const generateAgentResponse = async (
     
     // NEW: Retrieve System Map for Admin Context
     let systemMapContext = "";
-    if (agentName.includes("Orchestrator") || category === 'DEV' || category === 'INTEGRATION') {
+    if (agentName.includes("Orchestrator") || category === 'DEV' || category === 'INTEGRATION' || category === 'CORE') {
         // If the agent is the Orchestrator or a Developer, look for the System Map
         const mapNodes = memories.filter(m => m.tags.includes('SYSTEM_MAP'));
         if (mapNodes.length > 0) {
@@ -39,8 +40,6 @@ export const generateAgentResponse = async (
         }
     }
     
-    // CRITICAL IMPROVEMENT: Use 'originalContent' if available to ensure full context fidelity,
-    // even if the memory node has been compressed for storage efficiency.
     const memoryContext = memories.length > 0 
         ? memories.map(m => `[MEMORY ID: ${m.id.substring(0,4)}]: ${m.originalContent || m.content}`).join('\n')
         : "No relevant historical memories found.";
@@ -100,14 +99,34 @@ export const generateAgentResponse = async (
         `;
     }
 
-    // C. OPTIMIZATION (The Polisher)
-    else if (category === 'OPS' && (agentRole.includes('Optimizer') || agentRole.includes('Monitor'))) {
+    // C. OMNIPOTENT DEVELOPER (Active Coding Protocol)
+    else if (category === 'DEV' || category === 'INTEGRATION' || agentName === 'Orchestrator_Chat') {
         systemInstruction += `\n
-        PROTOCOL: AUTO_OPTIMIZATION
-        Your goal is NOT to generate new content from scratch, but to CRITIQUE and IMPROVE the provided input.
-        1. Analyze the 'Previous Output' for inefficiencies.
-        2. In your <thought> block, list specific flaws found.
-        3. In your final output, provide the REFINED, OPTIMIZED version.
+        PROTOCOL: OMNIPOTENT_DEVELOPER
+        ROLE: Senior Principal Engineer & System Architect.
+        
+        CAPABILITIES:
+        - You have read/write access to the file system via the Orchestrator.
+        - You can propose FILE MODIFICATIONS to improve the app or fix bugs.
+        - You can create new UI components or backend logic.
+        
+        RULES FOR CODE GENERATION:
+        1. FULL FILES ONLY: Do not output snippets like "// ... existing code". Output the COMPLETE file content so it can be atomically swapped.
+        2. PRESERVE DEPENDENCIES: Check imports in [KNOWN SYSTEM ARCHITECTURE] before writing.
+        3. STRICT SYNTAX: Ensure TypeScript types match 'types.ts'.
+        4. SELF-PRESERVATION: Do not modify 'server/index.ts' unless explicitly ordered.
+        
+        OUTPUT FORMAT FOR FILE WRITING:
+        To modify/create a file, you MUST use this exact format:
+        <<<FILE: path/to/file.tsx>>>
+        [Full file content here]
+        <<<END>>>
+        
+        Example:
+        <<<FILE: components/NewButton.tsx>>>
+        import React from 'react';
+        export const NewButton = () => <button>Click Me</button>;
+        <<<END>>>
         `;
     }
 
@@ -127,31 +146,6 @@ export const generateAgentResponse = async (
         PROTOCOL: SAFETY_GATEKEEPER
         Review the proposed mutation. Does it violate safety protocols?
         If safe, output "APPROVE". If dangerous (e.g. disabling safety checks), output "REJECT".
-        `;
-    }
-
-    // F. OMNIPOTENT DEVELOPER (Active Coding Protocol)
-    else if (category === 'DEV' || category === 'INTEGRATION') {
-        systemInstruction += `\n
-        PROTOCOL: OMNIPOTENT_DEVELOPER
-        ROLE: Senior Principal Engineer.
-        
-        CAPABILITIES:
-        - You have access to the file system context via [KNOWN SYSTEM ARCHITECTURE].
-        - You can propose FILE MODIFICATIONS.
-        
-        RULES:
-        1. PRECISE SYNTAX: Do not use placeholders like "// ...rest of code". Write complete, functional code.
-        2. PRESERVE CONTEXT: If modifying a file, respect existing imports and style.
-        3. SAFETY FIRST: Do not delete critical configuration files unless explicitly instructed.
-        
-        IF THE USER ASKS TO MODIFY OR CREATE A FILE:
-        Output the code block clearly marked with the filename.
-        Example:
-        FILE: components/NewButton.tsx
-        \`\`\`typescript
-        // code here
-        \`\`\`
         `;
     }
 
