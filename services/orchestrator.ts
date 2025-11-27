@@ -1,4 +1,3 @@
-
 import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory, BusinessType, ServiceStatus, SystemProtocol } from "../types";
 import { INITIAL_AGENTS } from "../constants";
 import { systemBus } from "./systemBus"; // Connect to Bus
@@ -318,7 +317,8 @@ class AgentSwarmOrchestrator {
       [WorkflowStage.ARCHIVAL]: ['DATA', 'CORE'],
       [WorkflowStage.META_ANALYSIS]: ['CORE', 'DATA'], 
       [WorkflowStage.ADAPTATION_QA]: ['LEGAL', 'CORE'],
-      [WorkflowStage.GENESIS]: ['INTEGRATION', 'DEV', 'CORE']
+      [WorkflowStage.GENESIS]: ['INTEGRATION', 'DEV', 'CORE'],
+      [WorkflowStage.DEPLOYMENT]: ['INTEGRATION', 'OPS', 'DEV']
     };
 
     const activeCategories = mapping[stage] || [];

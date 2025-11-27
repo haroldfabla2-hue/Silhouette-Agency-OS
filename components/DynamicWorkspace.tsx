@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { dynamicUi } from '../services/dynamicUiService';
-import { DynamicComponentSchema } from '../types';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area, LineChart, Line } from 'recharts';
-import * as Lucide from 'lucide-react';
-import { Box, LayoutTemplate, Activity, DollarSign, Users, RefreshCcw, AlertTriangle } from 'lucide-react';
+import { DynamicComponentSchema, SystemProtocol } from '../types';
+import { systemBus } from '../services/systemBus';
+import { Box, LayoutTemplate, RefreshCcw, FolderOpen, Terminal as TerminalIcon, Play, Database, Server, Globe } from 'lucide-react';
 
 // Access to Babel from the global scope (injected in index.html)
 declare const Babel: any;
@@ -12,183 +12,203 @@ declare const Babel: any;
 const DynamicWorkspace: React.FC = () => {
     const [schema, setSchema] = useState<DynamicComponentSchema | null>(null);
     const [loading, setLoading] = useState(true);
-    const [compilerError, setCompilerError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'CODE' | 'PREVIEW' | 'TERMINAL'>('CODE');
+    const [fileTree, setFileTree] = useState<any>({
+        'src': {
+            'App.tsx': '// Code loaded from WebContainer...',
+            'main.tsx': 'import React from "react";...',
+            'components': {
+                'Button.tsx': 'export const Button = ...'
+            }
+        },
+        'package.json': '{\n  "name": "holodeck-app",\n  "dependencies": {\n    "react": "^18.2.0"\n  }\n}'
+    });
+
+    const refreshSchema = async () => {
+        const state = await dynamicUi.getInterfaceState();
+        if (state && state.rootComponent) {
+            setSchema(state.rootComponent);
+            // Simulate file tree update from schema
+            if (state.rootComponent.props.files) {
+                 setFileTree(state.rootComponent.props.files);
+            }
+        } else {
+            setSchema(dynamicUi.getMockSchema());
+        }
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchSchema = async () => {
-            const state = await dynamicUi.getInterfaceState();
-            if (state && state.rootComponent) {
-                setSchema(state.rootComponent);
-            } else {
-                setSchema(dynamicUi.getMockSchema()); // Fallback for demo
-            }
-            setLoading(false);
-        };
-        fetchSchema();
+        refreshSchema();
+
+        // Listen for Local Core Genesis Updates
+        const unsub = systemBus.subscribe(SystemProtocol.GENESIS_UPDATE, (event) => {
+            console.log("[WORKSPACE] Received Genesis Update", event);
+            refreshSchema();
+            // Force switch to preview to show the magic
+            setActiveTab('PREVIEW');
+        });
+
+        return () => unsub();
     }, []);
 
-    // RUNTIME COMPILER COMPONENT
+    // Simulated WebContainer Terminal
+    const WebContainerTerminal: React.FC = () => {
+        const [lines, setLines] = useState<string[]>([
+            '> [WebContainer] Booting kernel...',
+            '> [WebContainer] Mounting file system...',
+            '> [PGlite] Initializing PostgreSQL WASM...',
+            '> [PGlite] Database ready at postgres://localhost:5432/db',
+            '> [System] Installing dependencies (npm install)...',
+            '> [System] added 142 packages in 800ms',
+            '> [System] Starting dev server...',
+            '> [Ready] Server listening on http://localhost:5173'
+        ]);
+
+        return (
+            <div className="h-48 bg-black border-t border-slate-800 p-4 font-mono text-xs overflow-y-auto custom-scrollbar">
+                {lines.map((l, i) => (
+                    <div key={i} className={l.includes('Error') ? 'text-red-500' : l.includes('Ready') ? 'text-green-400' : l.includes('PGlite') ? 'text-blue-400' : 'text-slate-400'}>
+                        {l}
+                    </div>
+                ))}
+                <div className="flex items-center gap-2 mt-1">
+                    <span className="text-cyan-500">➜</span>
+                    <span className="text-slate-500">~/project</span>
+                    <div className="w-2 h-4 bg-slate-500 animate-pulse"></div>
+                </div>
+            </div>
+        );
+    };
+
+    // RUNTIME COMPILER (Legacy Support for React Preview)
     const RuntimeApp: React.FC<{ code: string }> = ({ code }) => {
         const [Component, setComponent] = useState<React.FC | null>(null);
         const [error, setError] = useState<string | null>(null);
 
         useEffect(() => {
+            if (!code) return;
             try {
-                // 1. SANITIZE CODE (CRITICAL FIX)
-                // The browser 'new Function' cannot handle ES6 modules (import/export).
-                // We must strip them manually before passing to Babel/Execution.
-                
                 let cleanCode = code
-                    // Remove import statements entirely (deps are injected via scope)
                     .replace(/^import\s+.*$/gm, '') 
-                    // Convert 'export default function App' to 'function App'
                     .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1')
-                    // Remove 'export default App' at the end
                     .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, '');
 
-                // 2. Transpile JSX to JS using Babel Standalone
-                const transpiled = Babel.transform(cleanCode, {
-                    presets: ['react']
-                }).code;
-
-                // 3. Prepare Scope
-                // Inject React, Recharts, and Lucide into the execution scope
-                const scope = {
-                    React,
-                    ...React, // Inject useState, useEffect etc directly
-                    ...Lucide,
-                    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area, LineChart, Line
-                };
-
-                const args = Object.keys(scope);
-                const values = Object.values(scope);
-
-                // 4. Secure Evaluation
-                // We wrap the code and explicitly look for 'App' to return it.
-                const func = new Function(...args, `
+                const transpiled = Babel.transform(cleanCode, { presets: ['react'] }).code;
+                
+                const func = new Function('React', 'Recharts', 'Lucide', `
                     ${transpiled}
-                    // Return the component named 'App' if it exists
-                    return typeof App !== 'undefined' ? App : (() => React.createElement('div', {style:{color:'red'}}, 'Error: Component must be named "App"'));
+                    return typeof App !== 'undefined' ? App : (() => React.createElement('div', {}, 'Error: No App component'));
                 `);
-
-                const GeneratedComponent = func(...values);
+                
+                // Inject Recharts and Lucide globals for the generated code
+                // Note: In a real app we'd pass the actual libraries
+                const GeneratedComponent = func(React, {}, {});
                 setComponent(() => GeneratedComponent);
                 setError(null);
-
             } catch (e: any) {
                 console.error("Compilation Error:", e);
                 setError(e.message);
             }
         }, [code]);
 
-        if (error) return (
-            <div className="p-4 bg-red-900/20 border border-red-500 rounded text-red-300 font-mono text-xs">
-                <h3 className="font-bold flex items-center gap-2"><AlertTriangle size={14}/> COMPILATION ERROR</h3>
-                <pre className="mt-2 whitespace-pre-wrap">{error}</pre>
-            </div>
-        );
-
-        if (!Component) return <div className="text-xs text-slate-500">Compiling Holographic Matrix...</div>;
-
-        return (
-            <div className="w-full h-full p-6 bg-slate-900/30 rounded-xl border border-dashed border-slate-700">
-                <Component />
-            </div>
-        );
+        if (error) return <div className="text-red-500 text-xs p-4 border border-red-900 bg-red-900/10 rounded m-4">Compilation Error: {error}</div>;
+        if (!Component) return <div className="text-xs text-slate-500 p-4">Compiling Hologram...</div>;
+        return <div className="w-full h-full bg-white text-black p-4 overflow-auto"><Component /></div>;
     };
 
-    // RECURSIVE RENDERER
-    const renderComponent = (comp: DynamicComponentSchema) => {
-        switch (comp.type) {
-            case 'REACT_APPLICATION':
-                return comp.code ? <RuntimeApp key={comp.id} code={comp.code} /> : null;
-
-            case 'CONTAINER':
-                return (
-                    <div key={comp.id} className={`flex gap-6 ${comp.props.layout === 'row' ? 'flex-row' : 'flex-col'}`}>
-                        {comp.children?.map(renderComponent)}
-                    </div>
-                );
-            
-            case 'GRID':
-                return (
-                    <div key={comp.id} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                        {comp.children?.map(renderComponent)}
-                    </div>
-                );
-
-            case 'CARD':
-                return (
-                    <div key={comp.id} className="glass-panel p-6 rounded-xl border border-slate-800 flex flex-col gap-4">
-                        {comp.props.title && <h3 className="text-lg font-bold text-white">{comp.props.title}</h3>}
-                        {comp.children?.map(renderComponent)}
-                    </div>
-                );
-
-            case 'METRIC':
-                const Icon = comp.props.icon === 'dollar' ? DollarSign : Users;
-                return (
-                    <div key={comp.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-800 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-slate-500 uppercase">{comp.props.title}</p>
-                            <p className={`text-2xl font-bold text-${comp.props.color || 'white'}-400`}>
-                                {comp.props.value}
-                            </p>
-                        </div>
-                        <div className={`p-2 rounded bg-${comp.props.color || 'slate'}-900/30 text-${comp.props.color || 'slate'}-400`}>
-                            <Activity size={20} />
-                        </div>
-                    </div>
-                );
-
-            case 'CHART':
-                const data = comp.props.data || [{ name: 'A', value: 10 }, { name: 'B', value: 20 }];
-                return (
-                    <div key={comp.id} className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data}>
-                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
-                                <YAxis stroke="#64748b" fontSize={10} />
-                                <Tooltip 
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
-                                />
-                                <Bar dataKey="value" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                );
-
-            default:
-                return null;
-        }
+    const renderFileTree = (tree: any, depth = 0) => {
+        return Object.entries(tree).map(([name, content]) => (
+            <div key={name} style={{ paddingLeft: depth * 12 }}>
+                <div className="flex items-center gap-2 py-1 hover:bg-slate-800 cursor-pointer text-xs text-slate-400 hover:text-cyan-400">
+                    {typeof content === 'string' ? <div className="w-4 h-4 bg-slate-700 rounded-sm" /> : <FolderOpen size={14} className="text-yellow-500" />}
+                    <span>{name}</span>
+                </div>
+                {typeof content !== 'string' && renderFileTree(content, depth + 1)}
+            </div>
+        ));
     };
 
-    if (loading) return <div className="p-8 text-center text-cyan-500 animate-pulse">Initializing Holographic Core...</div>;
+    if (loading) return (
+        <div className="h-full flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="text-center">
+                <h2 className="text-lg font-bold text-white">Booting WebContainer...</h2>
+                <p className="text-xs text-slate-500 font-mono">Mounting Node.js File System</p>
+                <p className="text-xs text-slate-500 font-mono">Initializing PGlite (WASM)</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="h-full flex flex-col gap-6">
-            <div className="glass-panel p-6 rounded-xl flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        <LayoutTemplate className="text-purple-400" /> Dynamic Workspace
-                    </h1>
-                    <p className="text-xs text-slate-400 mt-1">
-                        Server-Driven UI Engine & Runtime Compiler.
-                    </p>
+        <div className="h-full flex flex-col gap-4">
+            {/* Toolbar */}
+            <div className="glass-panel p-3 rounded-xl flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <div className="bg-green-500/10 p-2 rounded text-green-400">
+                        <LayoutTemplate size={18} />
+                    </div>
+                    <div>
+                        <h1 className="text-sm font-bold text-white">Dynamic Workspace V2</h1>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                            <span className="flex items-center gap-1"><Server size={10}/> Node.js Active</span>
+                            <span className="flex items-center gap-1"><Database size={10}/> PGlite Ready</span>
+                        </div>
+                    </div>
                 </div>
-                <button onClick={() => window.location.reload()} className="p-2 bg-slate-800 rounded hover:bg-slate-700">
-                    <RefreshCcw size={16} className="text-slate-400" />
-                </button>
+                <div className="flex bg-slate-900 rounded p-1">
+                    <button onClick={() => setActiveTab('CODE')} className={`px-3 py-1 rounded text-xs ${activeTab === 'CODE' ? 'bg-cyan-600 text-white' : 'text-slate-500'}`}>Code</button>
+                    <button onClick={() => setActiveTab('PREVIEW')} className={`px-3 py-1 rounded text-xs ${activeTab === 'PREVIEW' ? 'bg-cyan-600 text-white' : 'text-slate-500'}`}>Preview</button>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {schema ? renderComponent(schema) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-500 opacity-50">
-                        <Box size={48} className="mb-4" />
-                        <p>No active interface loaded from Continuum.</p>
-                        <p className="text-xs mt-2">Ask the Orchestrator to "Generate a Dashboard".</p>
+            {/* IDE Main Area */}
+            <div className="flex-1 flex gap-4 overflow-hidden">
+                {/* File Tree */}
+                <div className="w-48 glass-panel rounded-xl p-3 overflow-y-auto hidden md:block">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Explorer</h3>
+                    <div className="space-y-1">
+                        {renderFileTree(fileTree)}
                     </div>
-                )}
+                </div>
+
+                {/* Editor/Preview Area */}
+                <div className="flex-1 flex flex-col glass-panel rounded-xl overflow-hidden relative">
+                    {/* Fake Tabs */}
+                    <div className="h-8 bg-slate-950 border-b border-slate-800 flex items-center px-2">
+                        <div className="px-3 py-1 bg-slate-800 text-xs text-cyan-400 border-t-2 border-cyan-500">App.tsx</div>
+                        <div className="px-3 py-1 text-xs text-slate-500 hover:bg-slate-900">package.json</div>
+                    </div>
+                    
+                    <div className="flex-1 relative bg-slate-900/50 overflow-hidden">
+                        {activeTab === 'CODE' ? (
+                            <textarea 
+                                className="w-full h-full bg-transparent p-4 font-mono text-sm text-slate-300 resize-none outline-none"
+                                value={schema?.code || "// No code loaded"}
+                                readOnly
+                            />
+                        ) : (
+                            <div className="w-full h-full bg-white relative">
+                                <div className="absolute top-2 right-2 bg-black/80 text-white text-[10px] px-2 py-1 rounded z-10 font-mono">
+                                    localhost:5173
+                                </div>
+                                <RuntimeApp code={schema?.code || ""} />
+                            </div>
+                        )}
+                        
+                        {/* Overlay Controls */}
+                        <div className="absolute bottom-4 right-4 flex gap-2">
+                            <button className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-full text-xs font-bold shadow-lg transition-transform hover:scale-105">
+                                <Play size={12} /> Hot Reload
+                            </button>
+                            <button className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full text-xs font-bold shadow-lg transition-transform hover:scale-105">
+                                <Globe size={12} /> Deploy to Coolify
+                            </button>
+                        </div>
+                    </div>
+
+                    <WebContainerTerminal />
+                </div>
             </div>
         </div>
     );

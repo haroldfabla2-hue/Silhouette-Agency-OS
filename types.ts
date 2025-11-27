@@ -1,4 +1,5 @@
 
+
 // Framework Enums
 export enum AgentStatus {
   IDLE = 'IDLE',
@@ -23,6 +24,7 @@ export enum WorkflowStage {
   META_ANALYSIS = 'SYSTEM_META_ANALYSIS', 
   ADAPTATION_QA = 'ADAPTATION_PROTOCOL_QA', 
   GENESIS = 'GENESIS_FACTORY_SPAWN', // NEW: Project Creation
+  DEPLOYMENT = 'GENESIS_COOLIFY_DEPLOY', // NEW: Git-Ops Deployment
   ARCHIVAL = 'CONTEXT_ARCHIVAL',
   IDLE = 'SYSTEM_IDLE'
 }
@@ -35,7 +37,10 @@ export enum SystemProtocol {
   SECURITY_LOCKDOWN = 'PROTOCOL_SECURITY_LOCKDOWN', 
   MEMORY_FLUSH = 'PROTOCOL_MEMORY_FLUSH',      
   INTERFACE_MORPH = 'PROTOCOL_INTERFACE_MORPH', 
-  RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT'    
+  RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT',
+  NEURO_LINK_HANDSHAKE = 'PROTOCOL_NEURO_LINK_HANDSHAKE', // NEW
+  HIVE_MIND_SYNC = 'PROTOCOL_HIVE_MIND_SYNC', // NEW
+  GENESIS_UPDATE = 'PROTOCOL_GENESIS_UPDATE' // NEW: Triggers Workspace Refresh
 }
 
 export interface ProtocolEvent {
@@ -99,7 +104,7 @@ export type BusinessType =
   | 'LAW_FIRM' 
   | 'FINTECH' 
   | 'DEV_SHOP' 
-  | 'RESEARCH_LAB'
+  | 'RESEARCH_LAB' 
   | 'CYBER_DEFENSE'
   | 'HEALTHCARE_ORG'
   | 'RETAIL_GIANT'
@@ -154,6 +159,8 @@ export interface InstallationState {
     gemini?: string;
     openai?: string;
     anthropic?: string;
+    github?: string;
+    coolify?: string;
   };
 }
 
@@ -382,7 +389,7 @@ export interface ChatMessage {
 
 export interface DynamicComponentSchema {
     id: string;
-    type: 'CONTAINER' | 'GRID' | 'CARD' | 'TABLE' | 'CHART' | 'METRIC' | 'BUTTON' | 'TEXT' | 'INPUT' | 'REACT_APPLICATION';
+    type: 'CONTAINER' | 'GRID' | 'CARD' | 'TABLE' | 'CHART' | 'METRIC' | 'BUTTON' | 'TEXT' | 'INPUT' | 'REACT_APPLICATION' | 'TERMINAL_VIEW' | 'FILE_EXPLORER';
     props: {
         title?: string;
         value?: string | number;
@@ -393,6 +400,7 @@ export interface DynamicComponentSchema {
         layout?: 'row' | 'col';
         width?: string;
         icon?: string;
+        files?: any; // New for File Explorer
     };
     children?: DynamicComponentSchema[];
     code?: string; // For REACT_APPLICATION type. Contains raw JSX.
@@ -413,6 +421,10 @@ export interface GenesisConfig {
     allowBridgeInjection: boolean;
     allowedRoles: UserRole[];
     maxConcurrentBuilds: number;
+    coolifyUrl?: string;
+    coolifyToken?: string;
+    gitUser?: string;
+    gitToken?: string;
 }
 
 export interface GenesisProject {
@@ -420,25 +432,34 @@ export interface GenesisProject {
     name: string;
     path: string;
     template: GenesisTemplate;
-    status: 'CREATING' | 'INSTALLING' | 'READY' | 'RUNNING' | 'ERROR';
+    status: 'CREATING' | 'INSTALLING' | 'READY' | 'RUNNING' | 'DEPLOYING' | 'LIVE' | 'ERROR';
     bridgeStatus: 'DISCONNECTED' | 'CONNECTED';
     createdAt: number;
     port?: number;
     client?: string;
     description?: string;
+    liveUrl?: string; // e.g., crm.client.com
+    repoUrl?: string;
 }
 
-export interface TerminalSession {
+// --- NEURO-LINK TYPES ---
+
+export enum NeuroLinkStatus {
+    DISCONNECTED = 'DISCONNECTED',
+    HANDSHAKE = 'CONNECTED', // Simplification for UI
+    CONNECTED = 'CONNECTED',
+    SYNCING = 'SYNCING'
+}
+
+export interface NeuroLinkNode {
     id: string;
-    name: string;
-    type: 'BASH' | 'POWERSHELL' | 'PYTHON';
-    history: string[];
-    active: boolean;
-}
-
-export interface TerminalMessage {
-    sessionId: string;
-    content: string;
-    type: 'STDOUT' | 'STDERR' | 'COMMAND';
-    timestamp: number;
+    projectId: string;
+    url: string;
+    status: NeuroLinkStatus;
+    latency: number;
+    lastHeartbeat: number;
+    resources: {
+        cpu: number;
+        memory: number;
+    };
 }
