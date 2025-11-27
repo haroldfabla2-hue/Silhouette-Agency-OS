@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Activity, Cpu, HardDrive, Zap, Globe, Lock, BrainCircuit, Users, MonitorPlay, AlertTriangle } from 'lucide-react';
 import { SystemMetrics, Project } from '../types';
@@ -27,13 +27,14 @@ const MetricCard: React.FC<{ title: string; value: string | number; sub: string;
 
 const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
   // Use real CPU tick history for chart in a real implementation
-  const data = [
+  // Memoize data to prevent unnecessary re-calculations during render phase
+  const data = useMemo(() => [
     { name: '0s', cpu: metrics.cpuTickDuration * 0.8, mem: metrics.jsHeapSize * 0.9 },
     { name: '-1s', cpu: metrics.cpuTickDuration, mem: metrics.jsHeapSize },
     { name: '-2s', cpu: metrics.cpuTickDuration * 0.9, mem: metrics.jsHeapSize * 0.95 },
     { name: '-3s', cpu: metrics.cpuTickDuration * 1.1, mem: metrics.jsHeapSize * 0.92 },
     { name: '-4s', cpu: metrics.cpuTickDuration * 0.7, mem: metrics.jsHeapSize * 0.98 },
-  ];
+  ], [metrics.cpuTickDuration, metrics.jsHeapSize]);
 
   return (
     <div className="space-y-6">
@@ -83,14 +84,21 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel p-6 rounded-xl">
+        <div className="lg:col-span-2 glass-panel p-6 rounded-xl flex flex-col">
           <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
             <Activity className="text-cyan-400" size={20} />
             Real-Time Resource Telemetry
           </h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+          
+          {/* 
+            FIX: Recharts Warning "width(-1)" 
+            Solution: Enforce strict block display and explicit pixel height 
+            on the parent container to ensure DOM dimensions are calculated 
+            before the chart mounts. Added minWidth/minHeight 0 to ResponsiveContainer.
+          */}
+          <div style={{ width: '100%', height: '300px' }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
@@ -120,7 +128,7 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
             <Globe className="text-green-400" size={20} />
             Active Projects
           </h3>
-          <div className="flex-1 space-y-4 overflow-y-auto max-h-[300px] pr-2">
+          <div className="flex-1 space-y-4 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
             {projects.map(p => (
               <div key={p.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 hover:border-cyan-900/50 transition-colors">
                 <div className="flex justify-between mb-2">
@@ -152,6 +160,5 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
 
 // Icons needed for metric cards
 const BrainCircuitIcon = (props: any) => <BrainCircuit {...props} />;
-const UsersIcon = (props: any) => <Users {...props} />;
 
 export default Dashboard;

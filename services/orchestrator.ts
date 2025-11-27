@@ -31,7 +31,7 @@ class AgentSwarmOrchestrator {
     // 1. Load the Core "Hero" Squads first (Core, Strategy, Context, Optimize, QA, Remediation)
     this.swarm = [...INITIAL_AGENTS];
     
-    // Core Logic Squads (Always needed for OS function)
+    // Core Logic Squads (Always needed for OS function) - TOTAL: 6 SQUADS
     const coreSquads: Squad[] = [
         { id: 'TEAM_CORE', name: 'Orchestration Command', leaderId: 'core-01', members: ['core-01', 'core-02'], category: 'CORE', active: true, port: 8000 },
         { id: 'TEAM_STRATEGY', name: 'Strategic Planning HQ', leaderId: 'strat-01', members: ['strat-01'], category: 'OPS', active: false, port: 8001 },
@@ -42,30 +42,33 @@ class AgentSwarmOrchestrator {
     ];
     this.squads.push(...coreSquads);
 
-    // 2. Procedurally Generate the remaining Professional Squads to reach 131 total
-    // Target: 131 Teams. Current: 6. Need 125 more.
+    // 2. Procedurally Generate the remaining Professional Squads to reach 131 total.
+    // Core Squads: 6.
+    // Need Generated: 125.
+    // Total: 131.
     
     // Enterprise Categories Configuration (Full Industry Spectrum)
+    // Sum of counts MUST equal 125.
     const domainConfigs: { cat: AgentCategory; prefix: string[]; roles: string[]; count: number }[] = [
-        // Tech & Dev (25 Teams)
+        // Tech & Dev (19 Teams)
         { 
-            cat: 'DEV', count: 18,
+            cat: 'DEV', count: 19, 
             prefix: ['Frontend', 'Backend', 'FullStack', 'Mobile', 'API', 'Microservice', 'Cloud', 'PWA', 'DevOps', 'Infra', 'NetOps', 'SiteReliability'], 
             roles: ['Senior Engineer', 'Architect', 'Code Ninja', 'QA Engineer'] 
         },
-        // Data & AI (15 Teams)
+        // Data & AI (12 Teams)
         { 
             cat: 'DATA', count: 12,
             prefix: ['Analytics', 'DataScience', 'MachineLearning', 'BigData', 'BI', 'DataEng', 'Governance', 'DataQuality', 'Visualization', 'Predictive'], 
             roles: ['Data Scientist', 'ML Engineer', 'Data Miner'] 
         },
-        // Marketing (20 Teams)
+        // Marketing (19 Teams)
         { 
-            cat: 'MARKETING', count: 18,
+            cat: 'MARKETING', count: 19, 
             prefix: ['Digital', 'Content', 'SocialMedia', 'Email', 'SEO', 'Automation', 'Conversion', 'Sales', 'BusinessDev', 'Growth', 'Brand'], 
             roles: ['Copywriter', 'SEO Specialist', 'Growth Hacker'] 
         },
-        // Operations & Support (30 Teams total)
+        // Operations & Support (25 Teams total)
         { 
             cat: 'OPS', count: 15,
             prefix: ['Process', 'Quality', 'SupplyChain', 'Logistics', 'Procurement', 'Agile', 'Risk', 'Audit'], 
@@ -107,7 +110,7 @@ class AgentSwarmOrchestrator {
             prefix: ['Renewable', 'SmartGrid', 'EnergyAnalytics', 'Sustainability', 'Utilities', 'Solar'], 
             roles: ['Energy Consultant', 'Grid Analyst'] 
         },
-        // Security & Legal
+        // Security & Legal (14 Teams)
         { 
             cat: 'CYBERSEC', count: 8,
             prefix: ['RedTeam', 'BlueTeam', 'Crypto', 'Shield', 'Firewall', 'ZeroTrust', 'Pentest', 'SecOps'], 
