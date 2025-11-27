@@ -6,7 +6,8 @@ export enum AgentStatus {
   THINKING = 'THINKING',
   WORKING = 'WORKING',
   CRITICAL = 'CRITICAL',
-  OFFLINE = 'OFFLINE'
+  OFFLINE = 'OFFLINE',
+  HIBERNATED = 'HIBERNATED' // NEW: For local mode limitations
 }
 
 export enum AgentRoleType {

@@ -1,3 +1,5 @@
+
+
 import { Agent, AgentStatus, AgentRoleType, Squad, SystemMode, WorkflowStage, AgentCategory, BusinessType, ServiceStatus, SystemProtocol } from "../types";
 import { INITIAL_AGENTS } from "../constants";
 import { systemBus } from "./systemBus"; // Connect to Bus
@@ -347,6 +349,12 @@ class AgentSwarmOrchestrator {
     const squad = this.squads.find(s => s.id === squadId);
     if (!squad) return;
 
+    // SIMULATED ENVIRONMENT CHECK: Are we in a browser without a real backend connection?
+    // In a real app, this flag would come from an env var or a heartbeat check status.
+    // For this demo, we assume specialized heavy squads are "hibernated" in local mode to show the difference.
+    const isBrowserSimulation = typeof window !== 'undefined'; // Simple check
+    const isHeavySquad = ['CYBERSEC', 'BIGDATA', 'AI_TRAINING'].includes(squad.category); // Hypothetical heavy categories
+
     if (squad.category === 'CORE' && !enabled) {
         enabled = true;
     }
@@ -354,12 +362,25 @@ class AgentSwarmOrchestrator {
     squad.active = enabled;
     this.swarm.filter(a => a.teamId === squadId).forEach(agent => {
       agent.enabled = enabled;
+      
+      // NEW LOGIC: Hibernation for Local Mode Limitation Visualization
+      if (enabled && isBrowserSimulation && agent.category !== 'CORE' && agent.category !== 'DEV') {
+         // In local mode, only CORE and DEV act fully "alive" for the demo.
+         // Others show as hibernated to illustrate the "Server Needed" concept.
+         if (Math.random() > 0.7) { 
+             agent.status = AgentStatus.HIBERNATED;
+             agent.ramUsage = 5; // Minimal footprint
+             return;
+         }
+      }
+
       if (!enabled) {
           agent.status = AgentStatus.OFFLINE;
           agent.ramUsage = 0;
           agent.cpuUsage = 0;
           agent.memoryLocation = 'VRAM'; // Reset to default on sleep
       } else {
+          // If active and not hibernated
           agent.status = Math.random() > 0.5 ? AgentStatus.IDLE : AgentStatus.THINKING;
           agent.ramUsage = 50 + Math.random() * 50; 
       }
@@ -473,7 +494,7 @@ class AgentSwarmOrchestrator {
        if (agent.status === AgentStatus.IDLE && Math.random() > 0.95) agent.status = AgentStatus.THINKING;
        if (agent.status === AgentStatus.THINKING && Math.random() > 0.9) agent.status = AgentStatus.WORKING;
        
-       if (agent.status !== AgentStatus.OFFLINE) {
+       if (agent.status !== AgentStatus.OFFLINE && agent.status !== AgentStatus.HIBERNATED) {
          agent.cpuUsage = agent.status === AgentStatus.WORKING ? 30 + Math.random() * 50 : 2 + Math.random() * 5;
          agent.ramUsage = Math.min(1024, agent.ramUsage + (Math.random() * 2 - 1));
        }

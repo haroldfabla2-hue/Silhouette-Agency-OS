@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agent, AgentStatus, Squad, AgentRoleType, WorkflowStage, AgentCategory } from '../types';
-import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase, CheckCircle2, XCircle, Stethoscope, ShoppingBag, Factory, Lightbulb, GraduationCap, HardDrive, Cpu } from 'lucide-react';
+import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase, CheckCircle2, XCircle, Stethoscope, ShoppingBag, Factory, Lightbulb, GraduationCap, HardDrive, Cpu, CloudOff } from 'lucide-react';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
 
@@ -164,12 +165,24 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                     const activeWorkers = workers.filter(a => a.enabled).length;
                     const CatIcon = categoryIcons[squad.category] || Users;
                     
+                    // Check if squad is "hibernated" (simulated check for now based on status)
+                    const isHibernated = leader?.status === AgentStatus.HIBERNATED;
+
                     return (
-                        <div key={squad.id} className={`rounded-xl border flex flex-col transition-all group ${
-                        squad.active 
+                        <div key={squad.id} className={`rounded-xl border flex flex-col transition-all group relative overflow-hidden ${
+                        squad.active && !isHibernated
                             ? 'bg-slate-900/80 border-cyan-900/50 shadow-[0_0_15px_rgba(0,0,0,0.3)] hover:border-cyan-500/50' 
-                            : 'bg-slate-900/30 border-slate-800 opacity-50 grayscale hover:grayscale-0 hover:opacity-80'
+                            : 'bg-slate-900/30 border-slate-800 opacity-60 hover:opacity-100'
                         }`}>
+                        
+                        {/* HIBERNATION OVERLAY FOR LOCAL MODE */}
+                        {isHibernated && (
+                            <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center flex-col text-slate-500 backdrop-blur-[1px] pointer-events-none group-hover:hidden">
+                                <CloudOff size={24} className="mb-1" />
+                                <span className="text-[10px] font-bold tracking-widest">SERVER REQ.</span>
+                            </div>
+                        )}
+
                         {/* Squad Header */}
                         <div className="p-3 border-b border-slate-800 flex justify-between items-center bg-black/20 rounded-t-xl">
                             <div className="flex items-center gap-2 overflow-hidden">
@@ -206,7 +219,11 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                                     : 'bg-slate-950/50 border-slate-800 hover:border-cyan-700'
                                 }`}
                             >
-                                <div className={`w-2 h-2 rounded-full ${leader.status === AgentStatus.WORKING ? 'bg-green-400' : 'bg-yellow-500'}`} />
+                                <div className={`w-2 h-2 rounded-full ${
+                                    leader.status === AgentStatus.WORKING ? 'bg-green-400' : 
+                                    leader.status === AgentStatus.HIBERNATED ? 'bg-slate-600' : 
+                                    'bg-yellow-500'
+                                }`} />
                                 <div className="overflow-hidden flex-1">
                                     <p className="text-[10px] text-white font-medium truncate">{leader.name}</p>
                                     <p className="text-[9px] text-slate-500 truncate">{leader.role}</p>
@@ -255,7 +272,9 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                   }`}>
                     {selectedAgent.roleType}
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">{selectedAgent.status}</span>
+                  <span className={`text-xs font-mono ${selectedAgent.status === AgentStatus.HIBERNATED ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {selectedAgent.status}
+                  </span>
                 </div>
               </div>
 
@@ -263,9 +282,11 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                 <div>
                   <label className="text-xs text-slate-500 uppercase font-mono">Mission Directive</label>
                   <p className="font-mono text-sm text-cyan-200 mt-1 leading-relaxed">
-                    {selectedAgent.enabled 
-                      ? `Active Protocol: ${currentStage}. Coordinating with ${selectedAgent.category} division.` 
-                      : "System Offline. Waiting for deployment authorization."}
+                    {selectedAgent.status === AgentStatus.HIBERNATED
+                      ? "AGENT HIBERNATED. Connect Backend Node to awaken capability."
+                      : selectedAgent.enabled 
+                        ? `Active Protocol: ${currentStage}. Coordinating with ${selectedAgent.category} division.` 
+                        : "System Offline. Waiting for deployment authorization."}
                   </p>
                 </div>
                 
@@ -304,7 +325,7 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                       <p>{`> init process --id=${selectedAgent.id}`}</p>
                       <p>{`> mounting volume /mnt/data/${selectedAgent.category.toLowerCase()}`}</p>
                       <p>{`> binding port: ${selectedAgent.port || 'DYNAMIC'}... OK`}</p>
-                      {selectedAgent.enabled && (
+                      {selectedAgent.enabled && selectedAgent.status !== AgentStatus.HIBERNATED && (
                           <>
                             <p className="text-cyan-400">{`> status: ONLINE`}</p>
                             <p className={selectedAgent.memoryLocation === 'VRAM' ? 'text-purple-400' : 'text-orange-400'}>
@@ -313,6 +334,9 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                             <p>{`> receiving task packet...`}</p>
                             <p>{`> processing...`}</p>
                           </>
+                      )}
+                      {selectedAgent.status === AgentStatus.HIBERNATED && (
+                           <p className="text-slate-500">{`> status: HIBERNATED (LOCAL MODE LIMIT)`}</p>
                       )}
                       {!selectedAgent.enabled && <p className="text-red-500">{`> status: SLEEP MODE`}</p>}
                     </div>
