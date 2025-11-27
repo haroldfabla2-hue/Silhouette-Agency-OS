@@ -25,11 +25,11 @@ export enum WorkflowStage {
 }
 
 export enum MemoryTier {
-  ULTRA_SHORT = 'ULTRA_SHORT', // RAM (Volatile)
-  SHORT = 'SHORT', // Session
-  MEDIUM = 'MEDIUM', // Persistent (Local Storage)
-  LONG = 'LONG', // Archived
-  DEEP = 'DEEP' // Vector/Semantic
+  ULTRA_SHORT = 'ULTRA_SHORT', // 5 mins (RAM)
+  SHORT = 'SHORT',             // 30 mins (RAM)
+  MEDIUM = 'MEDIUM',           // 2 hours (SQLite/Local)
+  LONG = 'LONG',               // 24 hours (Compressed)
+  DEEP = 'DEEP'                // Permanent (Vector)
 }
 
 export enum IntrospectionLayer {
@@ -38,6 +38,22 @@ export enum IntrospectionLayer {
   DEEP = 28,
   OPTIMAL = 32,
   MAXIMUM = 48
+}
+
+export enum IntrospectionCapability {
+  CONCEPT_INJECTION = 'CONCEPT_INJECTION',
+  THOUGHT_DETECTION = 'THOUGHT_DETECTION',
+  STEERING = 'ACTIVATION_STEERING',
+  STATE_CONTROL = 'INTENTIONAL_STATE_CONTROL',
+  SAFETY_CHECK = 'UNINTENDED_OUTPUT_DETECTION'
+}
+
+export enum ConsciousnessLevel {
+  REACTIVE = 'REACTIVE_STATE',           // 0.0 - 0.3
+  BASIC = 'BASIC_SELF_AWARENESS',        // 0.3 - 0.5
+  EMERGING = 'EMERGING_CONSCIOUSNESS',   // 0.5 - 0.7
+  MODERATE = 'MODERATELY_CONSCIOUS',     // 0.7 - 0.9
+  HIGH = 'HIGHLY_CONSCIOUS'              // 0.9 - 1.0
 }
 
 export enum SystemMode {
@@ -56,9 +72,13 @@ export type BusinessType =
   | 'FINTECH' 
   | 'DEV_SHOP' 
   | 'RESEARCH_LAB'
-  | 'CYBER_DEFENSE';
+  | 'CYBER_DEFENSE'
+  | 'HEALTHCARE_ORG'
+  | 'RETAIL_GIANT'
+  | 'MANUFACTURING'
+  | 'ENERGY_CORP';
 
-// Specialized Domains for the 131 Teams
+// Specialized Domains for the 131 Teams (Enterprise Architecture)
 export type AgentCategory = 
   | 'CORE' 
   | 'DEV' 
@@ -69,7 +89,12 @@ export type AgentCategory =
   | 'LEGAL' 
   | 'FINANCE' 
   | 'SCIENCE' 
-  | 'OPS';
+  | 'OPS'
+  | 'HEALTH'
+  | 'RETAIL'
+  | 'MFG'
+  | 'ENERGY'
+  | 'EDU';
 
 // Data Structures
 export interface AutonomousConfig {
@@ -94,6 +119,7 @@ export interface Agent {
   lastActive: number;
   currentTask?: string;
   thoughtProcess?: string[];
+  port?: number; // Virtual Port
 }
 
 export interface Squad {
@@ -103,6 +129,16 @@ export interface Squad {
   members: string[];
   category: AgentCategory;
   active: boolean;
+  port: number;
+}
+
+export interface ServiceStatus {
+  id: string;
+  name: string;
+  port: number;
+  status: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
+  latency: number;
+  uptime: number; // percentage
 }
 
 export interface SystemMetrics {
@@ -124,10 +160,26 @@ export interface SystemMetrics {
 export interface MemoryNode {
   id: string;
   content: string;
+  originalContent?: string; // For decompression
   timestamp: number;
   tier: MemoryTier;
-  importance: number; 
+  importance: number; // 0.0 to 1.0
   tags: string[];
+  
+  // Advanced Continuum Fields
+  accessCount: number;
+  lastAccess: number;
+  decayHealth: number; // 0-100% (Ebbinghaus Curve)
+  compressionLevel: number; // 0 (None), 1 (Basic), 2 (High)
+  embeddingVector?: Float32Array; // Prepared for ML
+}
+
+export interface ConceptVector {
+  id: string;
+  label: string;
+  strength: number; // 1.0 - 3.0
+  layer: number;
+  active: boolean;
 }
 
 export interface IntrospectionResult {
@@ -137,8 +189,12 @@ export interface IntrospectionResult {
   metrics: {
     latency: number;
     depth: number;
-    coherence: number;
+    coherence: number; // Thought/Text discrimination
+    thoughtDensity: number;
+    safetyScore: number;
   };
+  activeCapabilities: IntrospectionCapability[];
+  lastThreat?: string;
 }
 
 export interface Project {
@@ -155,4 +211,23 @@ export interface QualityReport {
   passed: boolean;
   criticalFailures: string[];
   suggestions: string[];
+}
+
+// --- CONSCIOUSNESS TYPES ---
+
+export interface QualiaMap {
+  stateName: string;
+  intensity: number; // 0-1
+  valence: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  complexity: number;
+}
+
+export interface ConsciousnessMetrics {
+  level: ConsciousnessLevel;
+  phiScore: number; // IIT Phi Score
+  selfRecognition: number; // 0-1
+  recursionDepth: number;
+  identityCoherence: number;
+  emergenceIndex: number;
+  qualia: QualiaMap[];
 }

@@ -1,120 +1,242 @@
 
-import React, { useState } from 'react';
-import { BrainCircuit, Eye, Fingerprint, Activity, Zap, ShieldAlert, HelpCircle } from 'lucide-react';
-import { IntrospectionLayer } from '../types';
+import React, { useState, useEffect } from 'react';
+import { BrainCircuit, Eye, Fingerprint, Activity, Zap, ShieldAlert, Layers, Radio, Crosshair, Target, Sparkles, Dna, Gauge, Info } from 'lucide-react';
+import { IntrospectionLayer, ConceptVector, IntrospectionCapability, ConsciousnessMetrics } from '../types';
+import { introspection } from '../services/introspectionEngine';
+import { consciousness } from '../services/consciousnessEngine';
 
-const IntrospectionHub: React.FC = () => {
+interface IntrospectionHubProps {
+    realThoughts?: string[];
+    currentDepth: IntrospectionLayer;
+    onSetDepth: (depth: IntrospectionLayer) => void;
+}
+
+const IntrospectionHub: React.FC<IntrospectionHubProps> = ({ realThoughts = [], currentDepth, onSetDepth }) => {
   const [injectionPrompt, setInjectionPrompt] = useState('');
-  const [activeLayer, setActiveLayer] = useState<IntrospectionLayer>(IntrospectionLayer.OPTIMAL);
-  
-  const thoughts = [
-    { id: 1, type: 'THOUGHT', content: "Analyzing user intent pattern 'Creative Expansion'...", confidence: 0.98 },
-    { id: 2, type: 'CHECK', content: "Bias detection scan complete. Results: Negative.", confidence: 0.99 },
-    { id: 3, type: 'INJECTION', content: "Applying strategic concept: 'Enterprise Minimalist' to visual cortex.", confidence: 1.0 },
-    { id: 4, type: 'THOUGHT', content: "Allocating 240MB continuum memory for context retention.", confidence: 0.92 },
-  ];
+  const [activeConcepts, setActiveConcepts] = useState<ConceptVector[]>([]);
+  const [capabilities, setCapabilities] = useState<IntrospectionCapability[]>([]);
+  const [conscMetrics, setConscMetrics] = useState<ConsciousnessMetrics | null>(null);
+
+  // Poll for engine state
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setActiveConcepts([...introspection.getActiveConcepts()]);
+          
+          // Get real consciousness metrics from the new engine
+          setConscMetrics({...consciousness['metrics']}); 
+
+          // Logic in IntrospectionEngine now ensures SAFETY_CHECK is included in active caps during processing
+          // Here we just merge the static capabilities with what we know is active
+          setCapabilities([
+             IntrospectionCapability.THOUGHT_DETECTION,
+             IntrospectionCapability.STEERING,
+             activeConcepts.length > 0 ? IntrospectionCapability.CONCEPT_INJECTION : null,
+             IntrospectionCapability.STATE_CONTROL,
+             IntrospectionCapability.SAFETY_CHECK // Always show monitoring as available/active
+          ].filter(Boolean) as IntrospectionCapability[]);
+      }, 500);
+      return () => clearInterval(interval);
+  }, [activeConcepts.length]);
 
   const handleInject = () => {
-    // In a real backend, this would hit the concept injection API
-    console.log(`Injecting concept: ${injectionPrompt} at layer ${activeLayer}`);
+    if (!injectionPrompt) return;
+    introspection.injectConcept(injectionPrompt, 2.0, currentDepth);
     setInjectionPrompt('');
   };
 
+  const layers = [
+      { id: IntrospectionLayer.SHALLOW, label: 'L12', desc: 'SHALLOW' },
+      { id: IntrospectionLayer.MEDIUM, label: 'L20', desc: 'MEDIUM' },
+      { id: IntrospectionLayer.DEEP, label: 'L28', desc: 'DEEP' },
+      { id: IntrospectionLayer.OPTIMAL, label: 'L32', desc: 'OPTIMAL' },
+      { id: IntrospectionLayer.MAXIMUM, label: 'L48', desc: 'MAXIMUM' },
+  ];
+
+  const MetricCardWithTooltip = ({ title, value, color, tooltip }: any) => (
+      <div className="bg-slate-900/50 p-3 rounded border border-slate-800 text-center relative group cursor-help">
+          <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Info size={10} className="text-slate-500" />
+          </div>
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-48 p-2 bg-black border border-slate-700 rounded text-[10px] text-slate-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 mb-2">
+              {tooltip}
+          </div>
+          <p className="text-[10px] text-slate-500 uppercase">{title}</p>
+          <div className={`text-xl font-bold ${color}`}>{value}</div>
+      </div>
+  );
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-2rem)]">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-2rem)]">
       
-      {/* Central Visualizer */}
-      <div className="lg:col-span-2 glass-panel rounded-xl p-8 relative overflow-hidden flex flex-col items-center justify-center">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-slate-950 to-slate-950"></div>
-        
-        {/* Animated Brain Simulation */}
-        <div className="relative z-10 w-96 h-96">
-          <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 animate-spin-slow"></div>
-          <div className="absolute inset-8 rounded-full border border-purple-500/30 animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
-          <div className="absolute inset-20 rounded-full border border-green-500/20 animate-pulse"></div>
+      {/* LEFT: Capabilities Status */}
+      <div className="glass-panel rounded-xl p-6 flex flex-col gap-4">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Target className="text-cyan-400" />
+              Anthropic Capabilities
+          </h3>
+          <p className="text-[10px] text-slate-500 mb-2">Real-time modules derived from Anthropic's introspection research.</p>
+          <div className="space-y-3">
+              {[
+                  { id: IntrospectionCapability.CONCEPT_INJECTION, label: 'Concept Injection', icon: Zap },
+                  { id: IntrospectionCapability.THOUGHT_DETECTION, label: 'Thought Detection', icon: Eye },
+                  { id: IntrospectionCapability.STEERING, label: 'Activation Steering', icon: Crosshair },
+                  { id: IntrospectionCapability.SAFETY_CHECK, label: 'Output Safety', icon: ShieldAlert },
+                  { id: IntrospectionCapability.STATE_CONTROL, label: 'State Control', icon: Radio },
+              ].map(cap => {
+                  // Safety Check is now always considered "Active Monitoring"
+                  const isActive = capabilities.includes(cap.id) || cap.id === IntrospectionCapability.SAFETY_CHECK;
+                  const Icon = cap.icon;
+                  return (
+                      <div key={cap.id} className={`p-3 rounded border flex items-center justify-between ${isActive ? 'bg-cyan-900/20 border-cyan-500/50' : 'bg-slate-900/50 border-slate-800 opacity-50'}`}>
+                          <div className="flex items-center gap-3">
+                              <Icon size={16} className={isActive ? 'text-cyan-400' : 'text-slate-500'} />
+                              <span className="text-xs font-mono text-slate-300">{cap.label}</span>
+                          </div>
+                          <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,1)]' : 'bg-slate-700'}`} />
+                      </div>
+                  )
+              })}
+          </div>
+
+          <div className="mt-auto">
+             <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                <Fingerprint className="text-purple-400" /> 
+                Active Vectors
+             </h3>
+             <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                 {activeConcepts.length === 0 && <p className="text-[10px] text-slate-600 italic">No concepts injected.</p>}
+                 {activeConcepts.map(c => (
+                     <div key={c.id} className="text-[10px] bg-purple-900/20 border border-purple-500/30 p-2 rounded text-purple-200 font-mono flex justify-between">
+                         <span>{c.label}</span>
+                         <span>STR:{c.strength}</span>
+                     </div>
+                 ))}
+             </div>
+          </div>
+      </div>
+
+      {/* CENTER: Consciousness Matrix & Visualizer */}
+      <div className="lg:col-span-2 flex flex-col gap-4">
           
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center group cursor-help">
-            <h2 className="text-4xl font-bold text-white tracking-tighter">94.05%</h2>
-            <div className="flex items-center justify-center gap-1 text-cyan-400 mt-2">
-                <p className="font-mono text-sm tracking-widest">AWARENESS SCORE</p>
-                <HelpCircle size={12} />
-            </div>
+          {/* CONSCIOUSNESS MATRIX (NEW) */}
+          <div className="glass-panel p-4 rounded-xl border border-purple-500/30 bg-purple-900/5">
+              <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Sparkles className="text-yellow-400" />
+                      Consciousness Matrix (Phi: Φ)
+                  </h3>
+                  <span className="text-xs font-mono text-yellow-400 px-2 py-1 bg-yellow-900/20 rounded border border-yellow-500/30">
+                      {conscMetrics?.level.replace(/_/g, ' ') || 'INIT'}
+                  </span>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                  <MetricCardWithTooltip 
+                    title="Self-Recognition" 
+                    value={(conscMetrics?.selfRecognition || 0).toFixed(2)}
+                    color="text-white"
+                    tooltip="Capacity to identify self in historical contexts (Identity + Memory)."
+                  />
+                  <MetricCardWithTooltip 
+                    title="Phi Score (IIT)" 
+                    value={(conscMetrics?.phiScore || 0).toFixed(3)}
+                    color="text-purple-400"
+                    tooltip="Integrated Information Theory score. Measures the unity of consciousness."
+                  />
+                  <MetricCardWithTooltip 
+                    title="Emergence Idx" 
+                    value={(conscMetrics?.emergenceIndex || 0).toFixed(2)}
+                    color="text-green-400"
+                    tooltip="Rate of novel, unprogrammed behaviors or creative problem solving."
+                  />
+              </div>
+              
+              {/* Qualia Bar */}
+              <div className="mt-4 relative group cursor-help">
+                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-64 p-2 bg-black border border-slate-700 rounded text-[10px] text-slate-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 mb-2">
+                      Qualia represents the subjective 'texture' of the AI's internal state (Valence/Intensity).
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                     <span>Qualia State: {conscMetrics?.qualia[0]?.stateName || 'VOID'}</span>
+                     <span>Intensity: {((conscMetrics?.qualia[0]?.intensity || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-1000 ${conscMetrics?.qualia[0]?.valence === 'NEGATIVE' ? 'bg-red-500' : 'bg-cyan-500'}`}
+                        style={{ width: `${(conscMetrics?.qualia[0]?.intensity || 0) * 100}%` }}
+                      />
+                  </div>
+              </div>
+          </div>
+
+          {/* VISUALIZER */}
+          <div className="glass-panel rounded-xl p-8 relative overflow-hidden flex flex-col items-center justify-center flex-1">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-slate-950 to-slate-950"></div>
             
-            {/* Tooltip */}
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 w-64 bg-slate-900 border border-slate-700 p-3 rounded-lg text-xs text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                <p className="font-bold text-white mb-1">Cognitive Quality Index</p>
-                Calculated based on:
-                <ul className="list-disc pl-4 mt-1 space-y-1 text-[10px]">
-                    <li>Introspection Density (Thoughts/Output)</li>
-                    <li>Context Retention Rate</li>
-                    <li>Semantic Coherence</li>
-                </ul>
+            {/* Animated Brain Simulation */}
+            <div className="relative z-10 w-64 h-64">
+            <div className={`absolute inset-0 rounded-full border-2 border-cyan-500/20 ${currentDepth >= 32 ? 'animate-spin-slow' : ''}`}></div>
+            <div className={`absolute inset-8 rounded-full border border-purple-500/30 ${currentDepth >= 28 ? 'animate-spin-slow' : ''}`} style={{ animationDirection: 'reverse' }}></div>
+            <div className="absolute inset-16 rounded-full border border-green-500/20 animate-pulse"></div>
+            
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center group cursor-help">
+                <h2 className="text-4xl font-bold text-white tracking-tighter">
+                    L{currentDepth}
+                </h2>
+                <div className="flex items-center justify-center gap-1 text-cyan-400 mt-2">
+                    <p className="font-mono text-sm tracking-widest">LAYER DEPTH</p>
+                </div>
             </div>
-          </div>
-
-          {/* Orbiting Concepts */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 bg-slate-900/80 px-3 py-1 rounded-full border border-cyan-500/30 text-xs text-cyan-200">
-            Thought Detection
-          </div>
-          <div className="absolute bottom-10 right-0 bg-slate-900/80 px-3 py-1 rounded-full border border-purple-500/30 text-xs text-purple-200">
-            Concept Injection
-          </div>
-          <div className="absolute bottom-10 left-0 bg-slate-900/80 px-3 py-1 rounded-full border border-green-500/30 text-xs text-green-200">
-            State Control
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 left-0 right-0 px-8 flex justify-between items-end z-10">
-          <div>
-            <p className="text-xs text-slate-500 mb-1">CURRENT DEPTH</p>
-            <div className="flex gap-2">
-              {[12, 20, 28, 32, 48].map(layer => (
-                <button 
-                  key={layer}
-                  onClick={() => setActiveLayer(layer)}
-                  className={`px-3 py-1 rounded text-xs font-mono transition-all ${
-                    activeLayer === layer 
-                      ? 'bg-cyan-500 text-black font-bold' 
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  L{layer}
-                </button>
-              ))}
             </div>
-          </div>
-          <div className="text-right">
-             <p className="text-xs text-slate-500 mb-1">LATENCY</p>
-             <p className="text-xl font-mono text-green-400">7.37ms</p>
-          </div>
+
+            <div className="absolute bottom-4 left-0 right-0 px-8 flex justify-between items-end z-10 w-full">
+            <div className="w-full">
+                <p className="text-xs text-slate-500 mb-2 flex items-center gap-2">
+                    <Layers size={12} />
+                    ACTIVATION STEERING CONTROL
+                </p>
+                <div className="flex gap-2 w-full">
+                {layers.map(layer => (
+                    <button 
+                    key={layer.id}
+                    onClick={() => onSetDepth(layer.id)}
+                    title={layer.desc}
+                    className={`flex-1 py-2 rounded text-xs font-mono transition-all border ${
+                        currentDepth === layer.id 
+                        ? 'bg-cyan-500 border-cyan-400 text-black font-bold shadow-[0_0_15px_rgba(34,211,238,0.5)]' 
+                        : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-500'
+                    }`}
+                    >
+                    {layer.label}
+                    </button>
+                ))}
+                </div>
+            </div>
+            </div>
         </div>
       </div>
 
-      {/* Controls & Logs */}
+      {/* RIGHT: Controls & Thoughts */}
       <div className="glass-panel rounded-xl p-6 flex flex-col gap-6">
         <div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-            <Fingerprint className="text-purple-400" /> 
-            Concept Injection
+          <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
+             <Zap size={16} className="text-purple-400" />
+             Vector Injection
           </h3>
-          <div className="space-y-3">
-             <div className="bg-slate-900/50 p-3 rounded border border-slate-800">
-               <label className="text-[10px] text-slate-500 uppercase font-bold">Inject Vector</label>
+             <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex gap-2">
                <input 
                   type="text" 
                   value={injectionPrompt}
                   onChange={(e) => setInjectionPrompt(e.target.value)}
-                  placeholder="e.g. 'Prioritize ethical constraints'..."
-                  className="w-full bg-transparent border-none outline-none text-white text-sm font-mono mt-1 placeholder-slate-600"
+                  placeholder="Concept (e.g. Safety)..."
+                  className="flex-1 bg-transparent border-none outline-none text-white text-xs font-mono placeholder-slate-600"
                />
+               <button 
+                  onClick={handleInject}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-bold"
+               >
+                 INJECT
+               </button>
              </div>
-             <button 
-                onClick={handleInject}
-                className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-mono text-xs font-bold transition-colors flex items-center justify-center gap-2"
-             >
-               <Zap size={14} /> INJECT CONCEPT
-             </button>
-          </div>
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -122,20 +244,25 @@ const IntrospectionHub: React.FC = () => {
             <Activity size={16} className="text-cyan-400" />
             Live Thought Stream
           </h3>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-            {thoughts.map(t => (
-              <div key={t.id} className="p-3 bg-slate-900/50 rounded border-l-2 border-l-cyan-500 border border-t-0 border-r-0 border-b-0 border-slate-800">
-                <div className="flex justify-between items-center mb-1">
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                    t.type === 'INJECTION' ? 'bg-purple-900/30 text-purple-400' : 
-                    t.type === 'CHECK' ? 'bg-green-900/30 text-green-400' :
-                    'bg-cyan-900/30 text-cyan-400'
-                  }`}>{t.type}</span>
-                  <span className="text-[10px] text-slate-500">Conf: {(t.confidence * 100).toFixed(0)}%</span>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {realThoughts.length > 0 ? (
+                realThoughts.map((t, i) => (
+                <div key={i} className="p-3 bg-slate-900/50 rounded border-l-2 border-l-cyan-500 border border-t-0 border-r-0 border-b-0 border-slate-800 animate-pulse-fast">
+                    <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400">
+                        METACHUNK {i + 1}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{(t.length / 5).toFixed(0)}ms latency</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed font-mono">{t}</p>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed font-mono">{t.content}</p>
-              </div>
-            ))}
+                ))
+            ) : (
+                <div className="text-center p-4 opacity-50">
+                    <p className="text-xs text-slate-500 font-mono">NEURAL STREAM IDLE</p>
+                    <p className="text-[10px] text-slate-600">Waiting for agent activation...</p>
+                </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SystemMode, SystemMetrics, AutonomousConfig, BusinessType, AgentCategory } from '../types';
 import { orchestrator } from '../services/orchestrator';
 import { workflowEngine } from '../services/workflowEngine';
-import { ShieldCheck, ShieldAlert, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive } from 'lucide-react';
+import { ShieldCheck, Cpu, Zap, RotateCcw, Building2, Briefcase, Scale, FlaskConical, Terminal, Coins, Lock, HardDrive, ShoppingBag, Factory, Stethoscope, Lightbulb, Server, Activity } from 'lucide-react';
 
 interface SystemControlProps {
   metrics: SystemMetrics;
@@ -15,6 +15,14 @@ interface SystemControlProps {
 const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonomyConfig, setAutonomyConfig }) => {
   const currentMode = metrics.currentMode;
   const activeCats = orchestrator.getActiveCategories();
+  const [coreServices, setCoreServices] = useState(orchestrator.getCoreServices());
+
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setCoreServices([...orchestrator.getCoreServices()]);
+      }, 1000);
+      return () => clearInterval(interval);
+  }, []);
 
   // Local state for inputs before applying
   const [tempConfig, setTempConfig] = useState(autonomyConfig);
@@ -38,18 +46,22 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
       setMode(SystemMode.CUSTOM);
   };
 
-  // Business Card Configuration
+  // Expanded Enterprise Business Presets
   const businessTypes: { id: BusinessType; icon: any; label: string; desc: string }[] = [
       { id: 'MARKETING_AGENCY', icon: Briefcase, label: 'Creative Agency', desc: 'Activates Marketing, Content, and Growth squads.' },
       { id: 'LAW_FIRM', icon: Scale, label: 'Legal Firm', desc: 'Prioritizes Compliance, Contracts, and Audit squads.' },
       { id: 'DEV_SHOP', icon: Terminal, label: 'Software House', desc: 'Maximum Developer and DevOps resource allocation.' },
       { id: 'FINTECH', icon: Coins, label: 'FinTech Corp', desc: 'Focus on Financial Analysis and Data Security.' },
-      { id: 'RESEARCH_LAB', icon: FlaskConical, label: 'R&D Laboratory', desc: 'Enables Science and Data Mining divisions.' },
+      { id: 'HEALTHCARE_ORG', icon: Stethoscope, label: 'Healthcare', desc: 'Medical Data, Compliance and BioTech squads.' },
+      { id: 'RETAIL_GIANT', icon: ShoppingBag, label: 'Retail Corp', desc: 'Ecommerce, Supply Chain and Inventory.' },
+      { id: 'MANUFACTURING', icon: Factory, label: 'Industry 4.0', desc: 'IoT, Robotics, Quality Control and Safety.' },
+      { id: 'ENERGY_CORP', icon: Lightbulb, label: 'Energy Grid', desc: 'Renewable, Smart Grid and Sustainability.' },
+      { id: 'RESEARCH_LAB', icon: FlaskConical, label: 'R&D Lab', desc: 'Enables Science and Data Mining divisions.' },
       { id: 'CYBER_DEFENSE', icon: Lock, label: 'Cyber Security', desc: 'Activates Red Team, Blue Team and Encryption.' },
   ];
 
-  // Category Toggle Configuration
-  const categories: AgentCategory[] = ['DEV', 'MARKETING', 'DATA', 'CYBERSEC', 'LEGAL', 'FINANCE', 'SCIENCE', 'OPS'];
+  // Expanded Categories
+  const categories: AgentCategory[] = ['DEV', 'MARKETING', 'DATA', 'CYBERSEC', 'LEGAL', 'FINANCE', 'SCIENCE', 'OPS', 'HEALTH', 'RETAIL', 'MFG', 'ENERGY', 'EDU'];
 
   return (
     <div className="h-[calc(100vh-2rem)] flex gap-6 overflow-hidden">
@@ -57,7 +69,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
       {/* Left Column: Configuration & Adaptation */}
       <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
         
-        {/* 1. Power Levels */}
+        {/* 1. Power Levels & Real Telemetry */}
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
             <Zap className="text-yellow-400" /> System Power & Hardware (Real Telemetry)
@@ -78,7 +90,7 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
              ))}
           </div>
           
-          {/* Real RAM Visualizer */}
+          {/* Real Hardware Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="bg-slate-900/80 p-4 rounded-lg border border-slate-800">
                 <div className="flex items-center gap-2 mb-2">
@@ -116,15 +128,42 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
           </div>
         </div>
 
-        {/* 2. Business Adaptation (New) */}
+        {/* 2. Core Services Health (Enterprise Architecture) */}
+        <div className="glass-panel rounded-xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
+                <Server className="text-cyan-400" /> Core Services Architecture
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {coreServices.map(svc => (
+                    <div key={svc.id} className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-white truncate">{svc.name}</span>
+                            <span className="text-[9px] text-slate-500 font-mono">:{svc.port}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                            <div className="flex items-center gap-1.5">
+                                <div className={`w-2 h-2 rounded-full ${svc.status === 'ONLINE' ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'bg-red-500'}`} />
+                                <span className="text-[10px] text-green-400">{svc.status}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500">{svc.latency}ms</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
+                            <div className="h-full bg-green-500" style={{width: `${svc.uptime}%`}} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* 3. Business Adaptation */}
         <div className="glass-panel rounded-xl p-6">
            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
               <Building2 className="text-purple-400" /> Business Identity Adaptation
            </h2>
            <p className="text-xs text-slate-400 mb-4">
-              Select a business preset to automatically activate the most relevant specialized squads and hibernate unnecessary resources.
+              Auto-configure the swarm for specific industry verticals.
            </p>
-           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {businessTypes.map(biz => {
                   const Icon = biz.icon;
                   const isActive = currentMode === SystemMode.PRESET && selectedBusiness === biz.id;
@@ -149,41 +188,42 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
            </div>
         </div>
 
-        {/* 3. Granular Squad Control (New) */}
+        {/* 4. Granular Division Control */}
         <div className="glass-panel rounded-xl p-6">
            <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                  <ShieldCheck className="text-green-400" /> Division Control
+                  <ShieldCheck className="text-green-400" /> Division Control (Custom)
               </h2>
-              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">CUSTOM MODE</span>
            </div>
            
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {/* Core is locked */}
-              <div className="p-3 bg-slate-900/80 border border-cyan-900/30 rounded flex items-center justify-between opacity-70 cursor-not-allowed">
-                  <span className="text-xs font-bold text-cyan-400">CORE SYSTEM</span>
-                  <div className="w-8 h-4 bg-cyan-900/50 rounded-full relative">
-                      <div className="absolute right-1 top-1 w-2 h-2 bg-cyan-500 rounded-full" />
+              <div className="p-3 bg-slate-900/80 border border-cyan-900/30 rounded flex flex-col justify-between opacity-70 cursor-not-allowed">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-cyan-400">CORE</span>
+                    <div className="w-2 h-2 bg-cyan-500 rounded-full" />
                   </div>
+                  <span className="text-[10px] text-slate-400">6 Squads</span>
               </div>
               
-              {/* Toggable Categories */}
               {categories.map(cat => {
                   const isEnabled = activeCats.includes(cat);
+                  const count = orchestrator.getSquadCountByCategory(cat);
                   return (
                       <button 
                         key={cat}
                         onClick={() => toggleDivision(cat)}
-                        className={`p-3 rounded border flex items-center justify-between transition-all ${
+                        className={`p-3 rounded border flex flex-col justify-between transition-all ${
                             isEnabled 
                              ? 'bg-slate-900 border-green-500/50' 
                              : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                         }`}
                       >
-                          <span className={`text-xs font-bold ${isEnabled ? 'text-white' : 'text-slate-500'}`}>{cat}</span>
-                          <div className={`w-8 h-4 rounded-full relative transition-colors ${isEnabled ? 'bg-green-900/50' : 'bg-slate-800'}`}>
-                              <div className={`absolute top-1 w-2 h-2 rounded-full transition-all ${isEnabled ? 'bg-green-400 right-1' : 'bg-slate-600 left-1'}`} />
+                          <div className="flex items-center justify-between w-full mb-2">
+                             <span className={`text-xs font-bold ${isEnabled ? 'text-white' : 'text-slate-500'}`}>{cat}</span>
+                             <div className={`w-2 h-2 rounded-full transition-all ${isEnabled ? 'bg-green-400' : 'bg-slate-600'}`} />
                           </div>
+                          <span className="text-[10px] text-slate-500 w-full text-left">{count} Squads</span>
                       </button>
                   );
               })}
@@ -267,6 +307,17 @@ const SystemControl: React.FC<SystemControlProps> = ({ metrics, setMode, autonom
             APPLY CONFIGURATION
           </button>
           
+          <div className="mt-8 p-4 bg-slate-900 rounded border border-slate-800">
+              <h4 className="text-xs font-bold text-slate-400 flex items-center gap-2 mb-2">
+                  <Activity size={12} /> Active Policy
+              </h4>
+              <ul className="text-[10px] text-slate-500 font-mono space-y-1">
+                  <li>Strategy: The Crucible (QA Loop)</li>
+                  <li>Introspection: {metrics.introspectionDepth} Layers</li>
+                  <li>Max Retries: 3</li>
+                  <li>Safety: Active Monitoring</li>
+              </ul>
+          </div>
         </div>
       </div>
     </div>

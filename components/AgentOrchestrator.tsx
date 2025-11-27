@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Agent, AgentStatus, Squad, AgentRoleType, WorkflowStage, AgentCategory } from '../types';
-import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase } from 'lucide-react';
+import { Server, Terminal, Search, Filter, Crown, Users, Shield, Code, DollarSign, Database, Microscope, Scale, Briefcase, CheckCircle2, XCircle, Stethoscope, ShoppingBag, Factory, Lightbulb, GraduationCap } from 'lucide-react';
 import { orchestrator } from '../services/orchestrator';
+import { workflowEngine } from '../services/workflowEngine';
 
 interface OrchestratorProps {
   agents: Agent[];
@@ -12,6 +14,15 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<AgentCategory | 'ALL'>('ALL');
+  const [qualityScore, setQualityScore] = useState(100);
+
+  // Poll for quality score updates
+  useEffect(() => {
+     const interval = setInterval(() => {
+         setQualityScore(workflowEngine.getLastQualityScore());
+     }, 1000);
+     return () => clearInterval(interval);
+  }, []);
   
   const squads = orchestrator.getSquads();
 
@@ -19,11 +30,13 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
     { id: WorkflowStage.INTENT, label: 'INTENT' },
     { id: WorkflowStage.PLANNING, label: 'PLAN' },
     { id: WorkflowStage.EXECUTION, label: 'EXECUTE' },
+    { id: WorkflowStage.QA_AUDIT, label: 'QA AUDIT' }, // The Crucible
+    { id: WorkflowStage.REMEDIATION, label: 'FIX' },     // The Crucible
     { id: WorkflowStage.OPTIMIZATION, label: 'OPTIMIZE' },
     { id: WorkflowStage.ARCHIVAL, label: 'ARCHIVE' },
   ];
 
-  // Icons for Categories
+  // Icons for Categories (Expanded Enterprise)
   const categoryIcons: Record<string, any> = {
       'CORE': Server,
       'DEV': Code,
@@ -33,7 +46,12 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
       'SCIENCE': Microscope,
       'LEGAL': Scale,
       'OPS': Briefcase,
-      'MARKETING': Users
+      'MARKETING': Users,
+      'HEALTH': Stethoscope,
+      'RETAIL': ShoppingBag,
+      'MFG': Factory,
+      'ENERGY': Lightbulb,
+      'EDU': GraduationCap
   };
 
   const filteredSquads = useMemo(() => {
@@ -50,11 +68,19 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
       {/* 1. Workflow Pipeline Header */}
       <div className="glass-panel p-4 rounded-xl flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-4 w-full">
-           <div className="flex items-center gap-2 mr-8">
+           <div className="flex items-center gap-2 mr-8 min-w-[150px]">
               <Server className="text-cyan-400" />
               <div>
                 <h2 className="text-white font-bold text-sm">WORKFLOW ENGINE</h2>
-                <p className="text-[10px] text-slate-400 font-mono">AUTONOMOUS</p>
+                <div className="flex items-center gap-2">
+                    <p className="text-[10px] text-slate-400 font-mono">AUTONOMOUS</p>
+                    {/* Quality Gate Indicator */}
+                    {(currentStage === WorkflowStage.QA_AUDIT || currentStage === WorkflowStage.REMEDIATION) && (
+                        <span className={`text-[10px] font-bold px-1.5 rounded ${qualityScore >= 99 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            Q-SCORE: {qualityScore}%
+                        </span>
+                    )}
+                </div>
               </div>
            </div>
 
@@ -72,11 +98,11 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                       'bg-slate-900 border-slate-700 text-slate-600'
                     }`}>
                       {isActive ? <div className="w-3 h-3 bg-white rounded-full animate-pulse" /> : 
-                       isPast ? <div className="w-3 h-3 bg-green-500 rounded-full" /> :
+                       isPast ? <CheckCircle2 size={14} /> :
                        <div className="w-2 h-2 bg-slate-600 rounded-full" />
                       }
                     </div>
-                    <span className={`text-[10px] font-mono font-bold ${isActive ? 'text-cyan-400' : 'text-slate-500'}`}>
+                    <span className={`text-[9px] font-mono font-bold ${isActive ? 'text-cyan-400' : 'text-slate-500'}`}>
                       {step.label}
                     </span>
                   </div>
@@ -147,7 +173,7 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                                 </div>
                                 <div className="overflow-hidden">
                                     <h3 className="text-xs font-bold text-white truncate w-32">{squad.name}</h3>
-                                    <p className="text-[9px] text-slate-500 font-mono mt-0.5">{squad.id}</p>
+                                    <p className="text-[9px] text-slate-500 font-mono mt-0.5">{squad.id} : {squad.port}</p>
                                 </div>
                             </div>
                             <div className={`w-2 h-2 rounded-full ${squad.active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-slate-700'}`} />
@@ -163,7 +189,7 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                                 onClick={() => setSelectedAgent(leader)}
                                 className={`p-2 rounded border cursor-pointer transition-colors flex items-center gap-3 ${
                                 selectedAgent?.id === leader.id 
-                                    ? 'bg-cyan-950/30 border-cyan-500' 
+                                    ? 'bg-cyan-900/30 border-cyan-500' 
                                     : 'bg-slate-950/50 border-slate-800 hover:border-cyan-700'
                                 }`}
                             >
@@ -251,6 +277,7 @@ const AgentOrchestrator: React.FC<OrchestratorProps> = ({ agents, currentStage }
                     <div className="opacity-70 space-y-1">
                       <p>{`> init process --id=${selectedAgent.id}`}</p>
                       <p>{`> mounting volume /mnt/data/${selectedAgent.category.toLowerCase()}`}</p>
+                      <p>{`> binding port: ${selectedAgent.port || 'DYNAMIC'}... OK`}</p>
                       <p>{`> connecting to workflow_engine:8080... OK`}</p>
                       <p>{`> role assigned: ${selectedAgent.role}`}</p>
                       {selectedAgent.enabled && (

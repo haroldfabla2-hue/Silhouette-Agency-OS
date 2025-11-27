@@ -1,3 +1,4 @@
+
 import { WorkflowStage, AutonomousConfig, IntrospectionLayer } from "../types";
 import { orchestrator } from "./orchestrator";
 import { continuum } from "./continuumMemory";
@@ -5,7 +6,7 @@ import { generateAgentResponse } from "./geminiService";
 import { MOCK_PROJECTS } from "../constants";
 
 // The Workflow Engine coordinates the high-level intent of the agency.
-// It moves the system through specific stages of operation.
+// V4.1 Update: Implements "The Crucible" (Recursive Quality Loop) + Circuit Breaker
 
 class WorkflowEngine {
   private currentStage: WorkflowStage = WorkflowStage.IDLE;
@@ -13,17 +14,30 @@ class WorkflowEngine {
   private tokenUsage: number = 0;
   private startTime: number = Date.now();
   private isProcessing: boolean = false; // Prevents overlapping calls
+  private lastThoughts: string[] = []; // Store real thoughts for UI
   
+  // Crucible State
+  private lastQualityScore: number = 100;
+  private remediationAttempts: number = 0;
+  private MAX_REMEDIATION_ATTEMPTS: number = 3;
+
+  // Circuit Breaker State
+  private failures: number = 0;
+  private circuitOpen: boolean = false;
+  private circuitResetTime: number = 0;
+  private readonly FAILURE_THRESHOLD = 3;
+  private readonly RESET_TIMEOUT = 30000; // 30 seconds
+
   // Data Pipeline to pass results between stages
   private pipelineData: {
     intent?: string;
     plan?: string;
     draftResult?: string; // Result from EXECUTION
+    qaReport?: string; // Result from QA
     finalResult?: string; // Result from OPTIMIZATION
   } = {};
 
   constructor() {
-    // Default config, will be overwritten by App.tsx
     this.config = {
       enabled: false,
       mode24_7: false,
@@ -45,31 +59,46 @@ class WorkflowEngine {
     return this.tokenUsage;
   }
 
+  public getLastThoughts(): string[] {
+    return this.lastThoughts;
+  }
+
+  public getLastQualityScore(): number {
+      return this.lastQualityScore;
+  }
+
   public async tick() {
     if (!this.config.enabled) {
       this.currentStage = WorkflowStage.IDLE;
       return;
     }
 
-    // 1. Safety Checks
+    // 1. Safety Checks (Circuit Breaker)
+    if (this.circuitOpen) {
+        if (Date.now() > this.circuitResetTime) {
+            console.log("[CIRCUIT BREAKER] Resetting circuit. Resuming operations.");
+            this.circuitOpen = false;
+            this.failures = 0;
+        } else {
+            return; // Circuit is open, stop ticking
+        }
+    }
+
     if (this.checkLimits()) {
       return; // Stop if limits reached
     }
 
-    // Do not tick if we are waiting for a real API response
     if (this.isProcessing) return;
 
-    // 2. State Machine Logic (REAL EXECUTION)
+    // 2. State Machine Logic
     switch (this.currentStage) {
       case WorkflowStage.IDLE:
-        // In 24/7 mode, automatically restart pipeline
         if (this.config.mode24_7) {
           this.startNewCycle();
         }
         break;
 
       case WorkflowStage.INTENT:
-        // Intent Analyzer Agent works here
         await this.executeStageTask(
             "Analyze current system context and define immediate strategic goals.", 
             "CORE", 
@@ -79,7 +108,6 @@ class WorkflowEngine {
         break;
 
       case WorkflowStage.PLANNING:
-        // Strategy Squad works here
         await this.executeStageTask(
             "Develop a step-by-step execution plan based on the defined goals.", 
             "OPS", 
@@ -89,19 +117,25 @@ class WorkflowEngine {
         break;
 
       case WorkflowStage.EXECUTION:
-        // Dev/Mkt/Spec Squads work here (Longest phase)
         await this.executeStageTask(
             `Execute the strategic plan. Context: ${MOCK_PROJECTS[0].name}. Generate high-quality deliverable.`,
             "DEV",
             "Code_Architect",
-            WorkflowStage.OPTIMIZATION
+            WorkflowStage.QA_AUDIT // Send to Crucible
         );
         break;
 
+      case WorkflowStage.QA_AUDIT:
+        await this.executeQARound();
+        break;
+
+      case WorkflowStage.REMEDIATION:
+        await this.executeRemediationRound();
+        break;
+
       case WorkflowStage.OPTIMIZATION:
-        // Optimization Squad improves the result using the Adversarial Loop
         await this.executeStageTask(
-            "Critique and optimize the provided draft deliverable for maximum efficiency and quality.",
+            "Perform final polish and efficiency check on the approved deliverable.",
             "OPS",
             "Improver_V9",
             WorkflowStage.ARCHIVAL
@@ -109,7 +143,6 @@ class WorkflowEngine {
         break;
 
       case WorkflowStage.ARCHIVAL:
-        // Context Keeper cleans up and saves
         this.performArchival();
         this.transitionTo(WorkflowStage.IDLE);
         break;
@@ -117,81 +150,160 @@ class WorkflowEngine {
   }
 
   private startNewCycle() {
-      this.pipelineData = {}; // Clear pipeline
+      this.pipelineData = {}; 
+      this.lastQualityScore = 0;
+      this.remediationAttempts = 0;
       this.transitionTo(WorkflowStage.INTENT);
   }
 
   private transitionTo(stage: WorkflowStage) {
     this.currentStage = stage;
-    // Notify Orchestrator to wake up relevant squads
     orchestrator.activateSquadsForStage(stage);
-    
-    // Log transition
     if (stage !== WorkflowStage.IDLE) {
        continuum.store(`[WORKFLOW] Entering ${stage} phase. Squads activated.`, undefined, ['system', 'workflow']);
     }
+  }
+
+  private recordFailure() {
+      this.failures++;
+      if (this.failures >= this.FAILURE_THRESHOLD) {
+          console.warn("[CIRCUIT BREAKER] Threshold reached. Opening circuit for 30s.");
+          this.circuitOpen = true;
+          this.circuitResetTime = Date.now() + this.RESET_TIMEOUT;
+          this.isProcessing = false;
+      }
+  }
+
+  private recordSuccess() {
+      this.failures = 0;
+  }
+
+  // Specialized logic for the QA -> Fix Loop
+  private async executeQARound() {
+      this.isProcessing = true;
+      try {
+        const input = this.pipelineData.draftResult || "No draft.";
+        
+        const response = await generateAgentResponse(
+            "QA_Inquisitor",
+            "Ruthless Auditor",
+            "OPS",
+            "Audit this draft for failures.",
+            input,
+            IntrospectionLayer.MAXIMUM, // Max depth for QA
+            WorkflowStage.QA_AUDIT
+        );
+
+        this.recordSuccess();
+        this.tokenUsage += response.usage;
+        this.lastThoughts = response.thoughts;
+        this.lastQualityScore = response.qualityScore || 85;
+        this.pipelineData.qaReport = response.output;
+
+        // THE CRUCIBLE DECISION LOGIC
+        if (this.lastQualityScore >= 98 || this.remediationAttempts >= this.MAX_REMEDIATION_ATTEMPTS) {
+            if (this.remediationAttempts >= this.MAX_REMEDIATION_ATTEMPTS) {
+                console.warn("Max remediation attempts reached. Forcing progression.");
+            }
+            this.transitionTo(WorkflowStage.OPTIMIZATION);
+        } else {
+            this.transitionTo(WorkflowStage.REMEDIATION);
+        }
+
+      } catch (e) {
+          console.error("QA Error", e);
+          this.recordFailure();
+          // Do not transition if failure, retry on next tick
+      } finally {
+          this.isProcessing = false;
+      }
+  }
+
+  private async executeRemediationRound() {
+      this.isProcessing = true;
+      try {
+          const draft = this.pipelineData.draftResult;
+          const report = this.pipelineData.qaReport;
+          const combined = `DRAFT:\n${draft}\n\nAUDIT REPORT:\n${report}`;
+
+          const response = await generateAgentResponse(
+            "Fixer_Unit",
+            "Senior Mechanic",
+            "DEV",
+            "Fix identified critical failures.",
+            combined,
+            IntrospectionLayer.DEEP,
+            WorkflowStage.REMEDIATION
+          );
+
+          this.recordSuccess();
+          this.tokenUsage += response.usage;
+          this.lastThoughts = response.thoughts;
+          
+          this.pipelineData.draftResult = response.output;
+          this.remediationAttempts++;
+
+          this.transitionTo(WorkflowStage.QA_AUDIT);
+
+      } catch (e) {
+          console.error("Remediation Error", e);
+          this.recordFailure();
+      } finally {
+          this.isProcessing = false;
+      }
   }
 
   private async executeStageTask(task: string, category: string, agentRole: string, nextStage: WorkflowStage) {
       this.isProcessing = true;
       
       try {
-          // Store intent context if we are in later stages
           const previousOutput = this.currentStage === WorkflowStage.OPTIMIZATION 
              ? this.pipelineData.draftResult || "No draft available." 
              : this.pipelineData.intent || null;
 
-          // REAL API CALL
           const response = await generateAgentResponse(
               agentRole, 
-              agentRole, // Role name same as ID for prompt
+              agentRole, 
               category, 
               task, 
               previousOutput, 
-              IntrospectionLayer.OPTIMAL
+              IntrospectionLayer.OPTIMAL,
+              this.currentStage
           );
 
-          // Track REAL Tokens
+          this.recordSuccess();
           this.tokenUsage += response.usage;
+          this.lastThoughts = response.thoughts;
 
-          // Save Data to Pipeline
           if (this.currentStage === WorkflowStage.INTENT) this.pipelineData.intent = response.output;
           if (this.currentStage === WorkflowStage.PLANNING) this.pipelineData.plan = response.output;
           if (this.currentStage === WorkflowStage.EXECUTION) this.pipelineData.draftResult = response.output;
           if (this.currentStage === WorkflowStage.OPTIMIZATION) this.pipelineData.finalResult = response.output;
 
-          // Move to next stage
           this.transitionTo(nextStage);
       } catch (e) {
           console.error("Workflow Execution Error", e);
-          // Wait and retry or abort? For now, we abort to idle to prevent loop crashes
-          this.config.enabled = false;
-          this.transitionTo(WorkflowStage.IDLE);
+          this.recordFailure();
       } finally {
           this.isProcessing = false;
       }
   }
 
   private performArchival() {
-    // Simulate "The Librarian" compressing context
     continuum.store("Context Cycle Completed. Compressing logs to Deep Storage.", undefined, ['archival']);
     
     if (this.config.safeCleanup) {
-        // "Sacred" file protection simulation
-        // In a real FS, this would check file metadata flags
-        console.log("[CONTEXT KEEPER] Protected 4 'SACRED' context files. Deleted 12 'EPHEMERAL' temp files.");
+        console.log("[CONTEXT KEEPER] Protected 'SACRED' context files. Cleaned temp execution cache.");
     }
   }
 
   private checkLimits(): boolean {
-    // Check Token Limit
     if (this.tokenUsage >= this.config.maxDailyTokens) {
-      this.config.enabled = false; // Emergency Stop
+      this.config.enabled = false; 
       console.warn("DAILY TOKEN LIMIT REACHED. STOPPING AUTONOMY.");
       return true;
     }
 
-    // Check Time Limit (if not 0)
     if (this.config.maxRunTimeHours > 0) {
       const runTimeMs = Date.now() - this.startTime;
       const maxMs = this.config.maxRunTimeHours * 60 * 60 * 1000;
