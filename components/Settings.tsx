@@ -32,6 +32,13 @@ const Settings: React.FC = () => {
         refreshSettings(); // Immediate UI update
     };
 
+    const toggleNotification = async (key: keyof SettingsState['notifications']) => {
+        const current = settings.notifications[key];
+        // Call manager to handle side effects (e.g. browser permission)
+        await settingsManager.updateNotifications({ [key]: !current });
+        refreshSettings(); // Re-fetch logic-processed state
+    };
+
     const handleIntegrationSave = (schemaId: string) => {
         settingsManager.saveCredential(schemaId, tempCredentials);
         setEditingIntegration(null);
@@ -270,12 +277,16 @@ const Settings: React.FC = () => {
                             </h3>
                             <div className="space-y-3">
                                 {Object.entries(settings.notifications).map(([key, value]) => (
-                                    <label key={key} className="flex items-center justify-between p-3 bg-slate-900/50 rounded border border-slate-800 cursor-pointer hover:border-slate-700">
-                                        <span className="text-xs text-slate-300 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                        <div className={`w-10 h-5 rounded-full relative transition-colors ${value ? 'bg-green-500' : 'bg-slate-700'}`}>
-                                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${value ? 'left-6' : 'left-1'}`} />
+                                    <div 
+                                        key={key} 
+                                        onClick={() => toggleNotification(key as any)}
+                                        className="flex items-center justify-between p-3 bg-slate-900/50 rounded border border-slate-800 cursor-pointer hover:border-slate-700 select-none transition-colors"
+                                    >
+                                        <span className="text-xs text-slate-300 capitalize font-medium">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                        <div className={`w-10 h-5 rounded-full relative transition-colors ${value ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-slate-700'}`}>
+                                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${value ? 'left-6' : 'left-1'}`} />
                                         </div>
-                                    </label>
+                                    </div>
                                 ))}
                             </div>
                         </section>

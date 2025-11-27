@@ -72,6 +72,23 @@ class SettingsManager {
         }
     }
 
+    public async updateNotifications(updates: Partial<SettingsState['notifications']>) {
+        // REAL LOGIC: Request Browser Permission
+        if (updates.browser === true) {
+            if (typeof Notification !== 'undefined') {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    console.warn("Browser notification permission denied.");
+                    updates.browser = false; // Revert if denied
+                }
+            }
+        }
+
+        this.state.notifications = { ...this.state.notifications, ...updates };
+        this.saveSettings();
+        return this.state.notifications; // Return actual state after logic
+    }
+
     // --- DYNAMIC INTEGRATION LOGIC ---
     
     // Register a new tool capability (called by Installation Service or manually)
