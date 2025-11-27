@@ -20,29 +20,30 @@ export enum WorkflowStage {
   QA_AUDIT = 'QUALITY_ASSURANCE_AUDIT',
   REMEDIATION = 'ERROR_REMEDIATION',
   OPTIMIZATION = 'AUTO_OPTIMIZATION',
-  META_ANALYSIS = 'SYSTEM_META_ANALYSIS', // New: Self-Reflection
-  ADAPTATION_QA = 'ADAPTATION_PROTOCOL_QA', // New: Safety check for changes
+  META_ANALYSIS = 'SYSTEM_META_ANALYSIS', 
+  ADAPTATION_QA = 'ADAPTATION_PROTOCOL_QA', 
+  GENESIS = 'GENESIS_FACTORY_SPAWN', // NEW: Project Creation
   ARCHIVAL = 'CONTEXT_ARCHIVAL',
   IDLE = 'SYSTEM_IDLE'
 }
 
 // NEW: SYSTEM PROTOCOLS
 export enum SystemProtocol {
-  UI_REFRESH = 'PROTOCOL_UI_REFRESH',         // Force re-render of components
-  SQUAD_EXPANSION = 'PROTOCOL_SQUAD_EXPANSION', // Inject new agents at runtime
-  CONFIG_MUTATION = 'PROTOCOL_CONFIG_MUTATION', // Change settings dynamically
-  SECURITY_LOCKDOWN = 'PROTOCOL_SECURITY_LOCKDOWN', // Emergency State
-  MEMORY_FLUSH = 'PROTOCOL_MEMORY_FLUSH',      // Transcendence trigger
-  INTERFACE_MORPH = 'PROTOCOL_INTERFACE_MORPH', // AI changes UI theme/density
-  RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT'    // Visualizing VRAM->RAM moves
+  UI_REFRESH = 'PROTOCOL_UI_REFRESH',         
+  SQUAD_EXPANSION = 'PROTOCOL_SQUAD_EXPANSION', 
+  CONFIG_MUTATION = 'PROTOCOL_CONFIG_MUTATION', 
+  SECURITY_LOCKDOWN = 'PROTOCOL_SECURITY_LOCKDOWN', 
+  MEMORY_FLUSH = 'PROTOCOL_MEMORY_FLUSH',      
+  INTERFACE_MORPH = 'PROTOCOL_INTERFACE_MORPH', 
+  RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT'    
 }
 
 export interface ProtocolEvent {
   type: SystemProtocol;
   payload: any;
   timestamp: number;
-  initiator: string; // Agent ID
-  id?: string; // Unique event ID for stacking
+  initiator: string; 
+  id?: string; 
 }
 
 export interface MorphPayload {
@@ -52,11 +53,11 @@ export interface MorphPayload {
 }
 
 export enum MemoryTier {
-  ULTRA_SHORT = 'ULTRA_SHORT', // 5 mins (RAM)
-  SHORT = 'SHORT',             // 30 mins (RAM)
-  MEDIUM = 'MEDIUM',           // 2 hours (SQLite/Local)
-  LONG = 'LONG',               // 24 hours (Compressed)
-  DEEP = 'DEEP'                // Permanent (Vector)
+  ULTRA_SHORT = 'ULTRA_SHORT', 
+  SHORT = 'SHORT',             
+  MEDIUM = 'MEDIUM',           
+  LONG = 'LONG',               
+  DEEP = 'DEEP'                
 }
 
 export enum IntrospectionLayer {
@@ -76,20 +77,20 @@ export enum IntrospectionCapability {
 }
 
 export enum ConsciousnessLevel {
-  REACTIVE = 'REACTIVE_STATE',           // 0.0 - 0.3
-  BASIC = 'BASIC_SELF_AWARENESS',        // 0.3 - 0.5
-  EMERGING = 'EMERGING_CONSCIOUSNESS',   // 0.5 - 0.7
-  MODERATE = 'MODERATELY_CONSCIOUS',     // 0.7 - 0.9
-  HIGH = 'HIGHLY_CONSCIOUS'              // 0.9 - 1.0
+  REACTIVE = 'REACTIVE_STATE',           
+  BASIC = 'BASIC_SELF_AWARENESS',        
+  EMERGING = 'EMERGING_CONSCIOUSNESS',   
+  MODERATE = 'MODERATELY_CONSCIOUS',     
+  HIGH = 'HIGHLY_CONSCIOUS'              
 }
 
 export enum SystemMode {
-  ECO = 'ECO',            // Level 1: Core only
-  BALANCED = 'BALANCED',  // Level 2: Core + Dev
-  HIGH = 'HIGH',          // Level 3: Most teams
-  ULTRA = 'ULTRA',        // Level 4: All 131 Agents
-  CUSTOM = 'CUSTOM',      // Level 5: Manual
-  PRESET = 'PRESET'       // Business Template
+  ECO = 'ECO',            
+  BALANCED = 'BALANCED',  
+  HIGH = 'HIGH',          
+  ULTRA = 'ULTRA',        
+  CUSTOM = 'CUSTOM',      
+  PRESET = 'PRESET'       
 }
 
 export type BusinessType = 
@@ -105,7 +106,6 @@ export type BusinessType =
   | 'MANUFACTURING'
   | 'ENERGY_CORP';
 
-// Specialized Domains for the 131 Teams (Enterprise Architecture)
 export type AgentCategory = 
   | 'CORE' 
   | 'DEV' 
@@ -125,15 +125,13 @@ export type AgentCategory =
   | 'INSTALL'
   | 'INTEGRATION'; 
 
-// --- INSTALLATION & RBAC TYPES ---
-
 export enum UserRole {
-  SUPER_ADMIN = 'SUPER_ADMIN', // Can see everything + System Control
-  ADMIN = 'ADMIN',             // Can see Dashboard + Orchestrator
-  WORKER_L1 = 'WORKER_L1',     // Limited Task View
-  WORKER_L2 = 'WORKER_L2',     // Full Task View
-  CLIENT = 'CLIENT',           // Only Project Status + Limited Chat
-  VISITOR = 'VISITOR'          // No Access
+  SUPER_ADMIN = 'SUPER_ADMIN', 
+  ADMIN = 'ADMIN',             
+  WORKER_L1 = 'WORKER_L1',     
+  WORKER_L2 = 'WORKER_L2',     
+  CLIENT = 'CLIENT',           
+  VISITOR = 'VISITOR'          
 }
 
 export interface SystemMap {
@@ -158,8 +156,6 @@ export interface InstallationState {
     anthropic?: string;
   };
 }
-
-// --- SETTINGS & CONFIGURATION TYPES ---
 
 export interface IntegrationSchema {
   id: string;
@@ -196,7 +192,7 @@ export interface PermissionMatrix {
 
 export interface SettingsState {
   theme: ThemeConfig;
-  integrations: Record<string, Record<string, string>>; // { serviceId: { key: value } }
+  integrations: Record<string, Record<string, string>>; 
   registeredIntegrations: IntegrationSchema[];
   permissions: PermissionMatrix;
   notifications: {
@@ -208,15 +204,14 @@ export interface SettingsState {
   language: 'en' | 'es' | 'fr' | 'jp';
 }
 
-// Data Structures
 export interface AutonomousConfig {
   enabled: boolean;
-  mode24_7: boolean; // Continuous loop
-  allowEvolution: boolean; // Allow system to rewrite its own rules
-  smartPaging: boolean; // NEW: Enable VRAM to RAM offloading
-  maxRunTimeHours: number; // 0 = infinite
-  maxDailyTokens: number; // Cost safety
-  safeCleanup: boolean; // Protect "SACRED" files
+  mode24_7: boolean; 
+  allowEvolution: boolean; 
+  smartPaging: boolean; 
+  maxRunTimeHours: number; 
+  maxDailyTokens: number; 
+  safeCleanup: boolean; 
 }
 
 export interface WorkflowMutation {
@@ -229,19 +224,20 @@ export interface WorkflowMutation {
 export interface Agent {
   id: string;
   name: string;
-  teamId: string; // Grouping ID
+  teamId: string; 
   category: AgentCategory;
-  roleType: AgentRoleType; // Leader or Worker
-  role: string; // Specific job title
+  roleType: AgentRoleType; 
+  role: string; 
   status: AgentStatus;
   enabled: boolean; 
-  memoryLocation: 'VRAM' | 'RAM'; // NEW: Physical location of the agent context
+  memoryLocation: 'VRAM' | 'RAM'; 
   cpuUsage: number; 
   ramUsage: number; 
   lastActive: number;
   currentTask?: string;
   thoughtProcess?: string[];
-  port?: number; // Virtual Port
+  port?: number; 
+  hibernated?: boolean;
 }
 
 export interface Squad {
@@ -260,48 +256,45 @@ export interface ServiceStatus {
   port: number;
   status: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
   latency: number;
-  uptime: number; // percentage
+  uptime: number; 
 }
 
 export interface SystemMetrics {
   activeAgents: number;
-  agentsInVram: number; // NEW
-  agentsInRam: number; // NEW
+  agentsInVram: number; 
+  agentsInRam: number; 
   introspectionDepth: number;
   awarenessScore: number; 
   fps: number;
   currentMode: SystemMode;
   tokenUsageToday: number;
   currentStage: WorkflowStage;
-  // Real Telemetry
-  jsHeapSize: number; // Real RAM (MB)
-  vramUsage: number; // Real GPU Memory Estimate (MB)
-  cpuTickDuration: number; // Real CPU Load (ms)
-  netLatency: number; // Real API Latency (ms)
-  systemAlert: string | null; // Warning message if hardware exceeded
+  jsHeapSize: number; 
+  vramUsage: number; 
+  cpuTickDuration: number; 
+  netLatency: number; 
+  systemAlert: string | null; 
 }
 
 export interface MemoryNode {
   id: string;
   content: string;
-  originalContent?: string; // For decompression
+  originalContent?: string; 
   timestamp: number;
   tier: MemoryTier;
-  importance: number; // 0.0 to 1.0
+  importance: number; 
   tags: string[];
-  
-  // Advanced Continuum Fields
   accessCount: number;
   lastAccess: number;
-  decayHealth: number; // 0-100% (Ebbinghaus Curve)
-  compressionLevel: number; // 0 (None), 1 (Basic), 2 (High)
-  embeddingVector?: Float32Array; // Prepared for ML
+  decayHealth: number; 
+  compressionLevel: number; 
+  embeddingVector?: Float32Array; 
 }
 
 export interface ConceptVector {
   id: string;
   label: string;
-  strength: number; // 1.0 - 3.0
+  strength: number; 
   layer: number;
   active: boolean;
 }
@@ -313,7 +306,7 @@ export interface IntrospectionResult {
   metrics: {
     latency: number;
     depth: number;
-    coherence: number; // Thought/Text discrimination
+    coherence: number; 
     thoughtDensity: number;
     safetyScore: number;
   };
@@ -331,25 +324,29 @@ export interface Project {
 }
 
 export interface QualityReport {
-  score: number; // 0-100
+  score: number; 
   passed: boolean;
   criticalFailures: string[];
   suggestions: string[];
 }
 
-// --- CONSCIOUSNESS TYPES ---
+export interface CritiqueResult {
+    passed: boolean;
+    score: number;
+    feedback: string;
+}
 
 export interface QualiaMap {
   stateName: string;
-  intensity: number; // 0-1
+  intensity: number; 
   valence: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
   complexity: number;
 }
 
 export interface ConsciousnessMetrics {
   level: ConsciousnessLevel;
-  phiScore: number; // IIT Phi Score
-  selfRecognition: number; // 0-1
+  phiScore: number; 
+  selfRecognition: number; 
   recursionDepth: number;
   identityCoherence: number;
   emergenceIndex: number;
@@ -373,4 +370,75 @@ export interface HostEnvironment {
     routes: string[];
     cookies: string[];
     localStorageKeys: string[];
+}
+
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'agent' | 'system';
+    text: string;
+    timestamp: number;
+    thoughts?: string[]; 
+}
+
+export interface DynamicComponentSchema {
+    id: string;
+    type: 'CONTAINER' | 'GRID' | 'CARD' | 'TABLE' | 'CHART' | 'METRIC' | 'BUTTON' | 'TEXT' | 'INPUT' | 'REACT_APPLICATION';
+    props: {
+        title?: string;
+        value?: string | number;
+        color?: string;
+        columns?: string[]; 
+        data?: any[]; 
+        onClick?: string; 
+        layout?: 'row' | 'col';
+        width?: string;
+        icon?: string;
+    };
+    children?: DynamicComponentSchema[];
+    code?: string; // For REACT_APPLICATION type. Contains raw JSX.
+}
+
+export interface DynamicInterfaceState {
+    activeAppId: string | null;
+    rootComponent: DynamicComponentSchema | null;
+    lastUpdated: number;
+}
+
+// --- GENESIS FACTORY TYPES ---
+
+export type GenesisTemplate = 'REACT_VITE' | 'NEXT_JS' | 'EXPRESS_API' | 'FULL_STACK_CRM' | 'EMPTY';
+
+export interface GenesisConfig {
+    workspaceRoot: string;
+    allowBridgeInjection: boolean;
+    allowedRoles: UserRole[];
+    maxConcurrentBuilds: number;
+}
+
+export interface GenesisProject {
+    id: string;
+    name: string;
+    path: string;
+    template: GenesisTemplate;
+    status: 'CREATING' | 'INSTALLING' | 'READY' | 'RUNNING' | 'ERROR';
+    bridgeStatus: 'DISCONNECTED' | 'CONNECTED';
+    createdAt: number;
+    port?: number;
+    client?: string;
+    description?: string;
+}
+
+export interface TerminalSession {
+    id: string;
+    name: string;
+    type: 'BASH' | 'POWERSHELL' | 'PYTHON';
+    history: string[];
+    active: boolean;
+}
+
+export interface TerminalMessage {
+    sessionId: string;
+    content: string;
+    type: 'STDOUT' | 'STDERR' | 'COMMAND';
+    timestamp: number;
 }

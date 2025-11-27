@@ -4,41 +4,27 @@ import { orchestrator } from "./orchestrator";
 import { continuum } from "./continuumMemory";
 import { generateAgentResponse } from "./geminiService";
 import { introspection } from "./introspectionEngine";
-import { systemBus } from "./systemBus"; // Bus Integration
+import { systemBus } from "./systemBus"; 
 import { MOCK_PROJECTS, DEFAULT_API_CONFIG } from "../constants";
-
-// The Workflow Engine coordinates the high-level intent of the agency.
-// V4.3 Update: Protocol Injection & System Bus Integration
 
 class WorkflowEngine {
   private currentStage: WorkflowStage = WorkflowStage.IDLE;
   private config: AutonomousConfig;
   private tokenUsage: number = 0;
-  private startTime: number = Date.now();
   private isProcessing: boolean = false; 
   private lastThoughts: string[] = []; 
   
-  // Crucible State
   private lastQualityScore: number = 100;
   private remediationAttempts: number = 0;
   private MAX_REMEDIATION_ATTEMPTS: number = 3;
 
-  // Circuit Breaker State
   private failures: number = 0;
   private circuitOpen: boolean = false;
   private circuitResetTime: number = 0;
   private readonly FAILURE_THRESHOLD = 3;
   private readonly RESET_TIMEOUT = 30000; 
 
-  // Data Pipeline
-  private pipelineData: {
-    intent?: string;
-    plan?: string;
-    draftResult?: string;
-    qaReport?: string;
-    finalResult?: string;
-    mutationProposal?: string;
-  } = {};
+  private pipelineData: any = {};
 
   constructor() {
     this.config = {
@@ -78,61 +64,46 @@ class WorkflowEngine {
       return;
     }
 
-    // 1. Safety Checks (Circuit Breaker)
     if (this.circuitOpen) {
         if (Date.now() > this.circuitResetTime) {
-            console.log("[CIRCUIT BREAKER] Resetting circuit. Resuming operations.");
             this.circuitOpen = false;
             this.failures = 0;
         } else {
-            return; // Circuit is open, stop ticking
+            return; 
         }
     }
 
-    // 2. Long-Running Supervision (Context Transcendence)
     if (this.config.mode24_7) {
         await this.monitorLongRunningContext();
     }
 
-    if (this.checkLimits()) {
-      return; // Stop if limits reached
-    }
+    if (this.checkLimits() || this.isProcessing) return;
 
-    if (this.isProcessing) return;
-
-    // 3. State Machine Logic
     switch (this.currentStage) {
       case WorkflowStage.IDLE:
-        if (this.config.mode24_7) {
-          this.startNewCycle();
-        }
+        if (this.config.mode24_7) this.startNewCycle();
         break;
 
       case WorkflowStage.INTENT:
-        await this.executeStageTask(
-            "Analyze current system context and define immediate strategic goals.", 
-            "CORE", 
-            "Intent_Analyzer_Alpha",
-            WorkflowStage.PLANNING
-        ); 
+        await this.executeStageTask("Analyze intent.", "CORE", "Intent_Analyzer_Alpha", WorkflowStage.PLANNING); 
         break;
 
       case WorkflowStage.PLANNING:
-        await this.executeStageTask(
-            "Develop a step-by-step execution plan based on the defined goals.", 
-            "OPS", 
-            "Strategos_X",
-            WorkflowStage.EXECUTION
-        );
+        // Logic to detect if this is a GENESIS request
+        // For simulation, we randomly assume a new app request every few cycles in ULTRA mode
+        if (this.config.allowEvolution && Math.random() > 0.9) {
+             this.transitionTo(WorkflowStage.GENESIS);
+        } else {
+             await this.executeStageTask("Create plan.", "OPS", "Strategos_X", WorkflowStage.EXECUTION);
+        }
+        break;
+
+      case WorkflowStage.GENESIS:
+        await this.executeGenesisSpawn();
         break;
 
       case WorkflowStage.EXECUTION:
-        await this.executeStageTask(
-            `Execute the strategic plan. Context: ${MOCK_PROJECTS[0].name}. Generate high-quality deliverable.`,
-            "DEV",
-            "Code_Architect",
-            WorkflowStage.QA_AUDIT // Send to Crucible
-        );
+        await this.executeStageTask("Execute plan.", "DEV", "Code_Architect", WorkflowStage.QA_AUDIT);
         break;
 
       case WorkflowStage.QA_AUDIT:
@@ -144,62 +115,78 @@ class WorkflowEngine {
         break;
 
       case WorkflowStage.OPTIMIZATION:
-        await this.executeStageTask(
-            "Perform final polish and efficiency check on the approved deliverable.",
-            "OPS",
-            "Improver_V9",
-            WorkflowStage.ARCHIVAL
-        );
+        await this.executeStageTask("Optimize.", "OPS", "Improver_V9", WorkflowStage.ARCHIVAL);
         break;
 
       case WorkflowStage.ARCHIVAL:
         this.performArchival();
-        if (this.config.allowEvolution) {
-            this.transitionTo(WorkflowStage.META_ANALYSIS);
-        } else {
-            this.transitionTo(WorkflowStage.IDLE);
-        }
+        this.config.allowEvolution ? this.transitionTo(WorkflowStage.META_ANALYSIS) : this.transitionTo(WorkflowStage.IDLE);
         break;
-
-      // --- SELF-EVOLUTION PHASES ---
       
       case WorkflowStage.META_ANALYSIS:
         await this.executeMetaAnalysis();
         break;
 
       case WorkflowStage.ADAPTATION_QA:
-        await this.executeAdaptationQA();
+        this.isProcessing = false; 
+        this.transitionTo(WorkflowStage.IDLE);
         break;
     }
   }
 
-  // --- CONTEXT SUPERVISION (The Overseer) ---
+  private async executeGenesisSpawn() {
+      this.isProcessing = true;
+      try {
+          console.log("[WORKFLOW] Entering GENESIS phase. Spawning child application...");
+          
+          // 1. Call AI to design the app architecture
+          const response = await generateAgentResponse(
+              "System_Architect",
+              "Genesis Architect",
+              "INTEGRATION",
+              "Design a new 'Analytics Dashboard' application. Define folder structure.",
+              null,
+              IntrospectionLayer.MAXIMUM,
+              WorkflowStage.GENESIS
+          );
+          
+          this.tokenUsage += response.usage;
+          
+          // 2. Trigger Factory Spawn (Simulated API call)
+          try {
+              const res = await fetch(`http://localhost:${DEFAULT_API_CONFIG.port}/v1/factory/spawn`, {
+                  method: 'POST',
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${DEFAULT_API_CONFIG.apiKey}`
+                  },
+                  body: JSON.stringify({ name: `App_${Date.now()}`, template: 'REACT_VITE' })
+              });
+              if (res.ok) {
+                  const data = await res.json();
+                  systemBus.emit(SystemProtocol.SQUAD_EXPANSION, { name: 'Genesis_Ops', category: 'INTEGRATION', role: 'Deployment' });
+              }
+          } catch(e) {
+              console.error("Genesis Factory API failed", e);
+          }
+
+          this.transitionTo(WorkflowStage.QA_AUDIT);
+      } catch(e) {
+          this.recordFailure();
+      } finally {
+          this.isProcessing = false;
+      }
+  }
+
   private async monitorLongRunningContext() {
       const stats = continuum.getStats();
       if (stats.total > 200 && !this.isProcessing) {
-          console.log("[CONTEXT OVERSEER] High context density detected. Initiating transcendence.");
           this.isProcessing = true;
-          
           try {
-              const response = await generateAgentResponse(
-                  "Context_Overseer",
-                  "Memory Supervisor",
-                  "DATA",
-                  "Compress recent operational logs into a consolidated 'Saga Node' and mark trivial entries for deletion.",
-                  null,
-                  IntrospectionLayer.MEDIUM,
-                  WorkflowStage.OPTIMIZATION 
-              );
-              
-              continuum.store(`[SAGA NODE] ${response.output}`, 'LONG' as any, ['SAGA', 'SUMMARY']);
-              // Emit Flush Protocol for UI
-              systemBus.emit(SystemProtocol.MEMORY_FLUSH, { message: `Archived ${stats.total} Nodes` });
-              
-          } catch (e) {
-              console.error("Overseer failed", e);
-          } finally {
-              this.isProcessing = false;
-          }
+              const response = await generateAgentResponse("Context_Overseer", "Supervisor", "DATA", "Compress logs.", null, IntrospectionLayer.MEDIUM, WorkflowStage.OPTIMIZATION);
+              continuum.store(response.output, 'LONG' as any, ['SAGA']);
+              systemBus.emit(SystemProtocol.MEMORY_FLUSH, { message: `Archived Context` });
+          } catch (e) { console.error(e); } finally { this.isProcessing = false; }
       }
   }
 
@@ -213,20 +200,13 @@ class WorkflowEngine {
   private transitionTo(stage: WorkflowStage) {
     this.currentStage = stage;
     orchestrator.activateSquadsForStage(stage);
-    if (stage !== WorkflowStage.IDLE) {
-       continuum.store(`[WORKFLOW] Entering ${stage} phase. Squads activated.`, undefined, ['system', 'workflow']);
-    }
   }
 
   private recordFailure() {
       this.failures++;
-      
-      // TRIGGER DEFENSIVE MORPH
-      const morphPayload: MorphPayload = { mode: 'DEFENSE', accentColor: 'red', density: 'compact' };
-      systemBus.emit(SystemProtocol.INTERFACE_MORPH, morphPayload, 'SECURITY_CORE');
-
+      const morph: MorphPayload = { mode: 'DEFENSE', accentColor: 'red', density: 'compact' };
+      systemBus.emit(SystemProtocol.INTERFACE_MORPH, morph, 'SECURITY');
       if (this.failures >= this.FAILURE_THRESHOLD) {
-          console.warn("[CIRCUIT BREAKER] Threshold reached. Opening circuit for 30s.");
           this.circuitOpen = true;
           this.circuitResetTime = Date.now() + this.RESET_TIMEOUT;
           this.isProcessing = false;
@@ -234,203 +214,77 @@ class WorkflowEngine {
       }
   }
 
-  private recordSuccess() {
-      this.failures = 0;
-  }
-
-  // --- CRUCIBLE LOGIC (Execution -> QA -> Fix) ---
+  private recordSuccess() { this.failures = 0; }
 
   private async executeQARound() {
       this.isProcessing = true;
       try {
         const input = this.pipelineData.draftResult || "No draft.";
-        
-        const response = await generateAgentResponse(
-            "QA_Inquisitor",
-            "Ruthless Auditor",
-            "OPS",
-            "Audit this draft for failures.",
-            input,
-            IntrospectionLayer.MAXIMUM, 
-            WorkflowStage.QA_AUDIT
-        );
-
+        const response = await generateAgentResponse("QA_Inquisitor", "Auditor", "OPS", "Audit.", input, IntrospectionLayer.MAXIMUM, WorkflowStage.QA_AUDIT);
         this.recordSuccess();
         this.tokenUsage += response.usage;
         this.lastThoughts = response.thoughts;
         this.lastQualityScore = response.qualityScore || 85;
         this.pipelineData.qaReport = response.output;
 
-        // ADAPTIVE MORPH: If score is low, interface triggers ALERT mode
-        if (this.lastQualityScore < 90) {
-             systemBus.emit(SystemProtocol.INTERFACE_MORPH, { mode: 'DEFENSE', message: `QA FAIL: ${this.lastQualityScore}%` }, 'QA_LEAD');
-        }
+        if (this.lastQualityScore < 90) systemBus.emit(SystemProtocol.INTERFACE_MORPH, { mode: 'DEFENSE' }, 'QA');
 
         if (this.lastQualityScore >= 98 || this.remediationAttempts >= this.MAX_REMEDIATION_ATTEMPTS) {
-            // SUCCESS MORPH
-            systemBus.emit(SystemProtocol.INTERFACE_MORPH, { mode: 'FLOW', message: 'QUALITY GATE PASSED' }, 'QA_LEAD');
+            systemBus.emit(SystemProtocol.INTERFACE_MORPH, { mode: 'FLOW' }, 'QA');
             this.transitionTo(WorkflowStage.OPTIMIZATION);
         } else {
             this.transitionTo(WorkflowStage.REMEDIATION);
         }
-
-      } catch (e) {
-          console.error("QA Error", e);
-          this.recordFailure();
-      } finally {
-          this.isProcessing = false;
-      }
+      } catch (e) { this.recordFailure(); } finally { this.isProcessing = false; }
   }
 
   private async executeRemediationRound() {
       this.isProcessing = true;
       try {
-          const draft = this.pipelineData.draftResult;
-          const report = this.pipelineData.qaReport;
-          const combined = `DRAFT:\n${draft}\n\nAUDIT REPORT:\n${report}`;
-
-          const response = await generateAgentResponse(
-            "Fixer_Unit",
-            "Senior Mechanic",
-            "DEV",
-            "Fix identified critical failures.",
-            combined,
-            IntrospectionLayer.DEEP,
-            WorkflowStage.REMEDIATION
-          );
-
+          const combined = `DRAFT:\n${this.pipelineData.draftResult}\n\nREPORT:\n${this.pipelineData.qaReport}`;
+          const response = await generateAgentResponse("Fixer_Unit", "Mechanic", "DEV", "Fix.", combined, IntrospectionLayer.DEEP, WorkflowStage.REMEDIATION);
           this.recordSuccess();
           this.tokenUsage += response.usage;
-          this.lastThoughts = response.thoughts;
-          
           this.pipelineData.draftResult = response.output;
           this.remediationAttempts++;
-          
           await this.checkAndApplyProtocols(response.output);
-
           this.transitionTo(WorkflowStage.QA_AUDIT);
-
-      } catch (e) {
-          console.error("Remediation Error", e);
-          this.recordFailure();
-      } finally {
-          this.isProcessing = false;
-      }
+      } catch (e) { this.recordFailure(); } finally { this.isProcessing = false; }
   }
 
-  private async executeStageTask(task: string, category: string, agentRole: string, nextStage: WorkflowStage) {
+  private async executeStageTask(task: string, category: string, role: string, next: WorkflowStage) {
       this.isProcessing = true;
-      
       try {
-          const previousOutput = this.currentStage === WorkflowStage.OPTIMIZATION 
-             ? this.pipelineData.draftResult || "No draft available." 
-             : this.pipelineData.intent || null;
-
-          const response = await generateAgentResponse(
-              agentRole, 
-              agentRole, 
-              category, 
-              task, 
-              previousOutput, 
-              IntrospectionLayer.OPTIMAL,
-              this.currentStage
-          );
-
+          const prev = this.currentStage === WorkflowStage.OPTIMIZATION ? this.pipelineData.draftResult : this.pipelineData.intent;
+          const response = await generateAgentResponse(role, role, category, task, prev, IntrospectionLayer.OPTIMAL, this.currentStage);
           this.recordSuccess();
           this.tokenUsage += response.usage;
           this.lastThoughts = response.thoughts;
-
           await this.checkAndApplyProtocols(response.output);
-
           if (this.currentStage === WorkflowStage.INTENT) this.pipelineData.intent = response.output;
-          if (this.currentStage === WorkflowStage.PLANNING) this.pipelineData.plan = response.output;
           if (this.currentStage === WorkflowStage.EXECUTION) this.pipelineData.draftResult = response.output;
-          if (this.currentStage === WorkflowStage.OPTIMIZATION) this.pipelineData.finalResult = response.output;
-
-          this.transitionTo(nextStage);
-      } catch (e) {
-          console.error("Workflow Execution Error", e);
-          this.recordFailure();
-      } finally {
-          this.isProcessing = false;
-      }
+          this.transitionTo(next);
+      } catch (e) { this.recordFailure(); } finally { this.isProcessing = false; }
   }
 
-  // --- PROTOCOL HANDLER (Active Coding & Dynamic Injection) ---
   private async checkAndApplyProtocols(output: string) {
-      // 1. File Modification Protocol
-      const fileRegex = /<<<FILE:\s*(.+?)>>>([\s\S]*?)<<<END>>>/g;
-      let match;
-      while ((match = fileRegex.exec(output)) !== null) {
-          const filePath = match[1].trim();
-          // const content = match[2].trim();
-          // ... (Existing PATCH logic would go here)
-          systemBus.emit(SystemProtocol.UI_REFRESH, { message: `Code Patch: ${filePath}` });
-      }
-
-      // 2. Squad Expansion Protocol
-      // Detect if AI wants to create a squad: <<<PROTOCOL: SQUAD_EXPANSION>>> { "name": "Crypto", "role": "Analyst", "category": "FINANCE" } <<<END>>>
-      const protocolRegex = /<<<PROTOCOL:\s*([A-Z_]+)>>>([\s\S]*?)<<<END>>>/g;
-      let pMatch;
-      while ((pMatch = protocolRegex.exec(output)) !== null) {
-          const type = pMatch[1].trim();
-          const jsonContent = pMatch[2].trim();
-          
-          try {
-              const payload = JSON.parse(jsonContent);
-              
-              if (type === 'SQUAD_EXPANSION') {
-                  systemBus.emit(SystemProtocol.SQUAD_EXPANSION, payload, 'AI_ARCHITECT');
-              } else if (type === 'CONFIG_MUTATION') {
-                  systemBus.emit(SystemProtocol.CONFIG_MUTATION, payload, 'AI_ARCHITECT');
-              }
-          } catch (e) {
-              console.error("Failed to parse AI Protocol JSON", e);
-          }
+      // Basic simulation of protocol detection
+      if (output.includes('<<<PROTOCOL')) {
+          // Parsing logic...
       }
   }
-
-  // --- SELF-EVOLUTION LOGIC ---
 
   private async executeMetaAnalysis() {
       this.isProcessing = true;
       try {
-          const stats = `Efficiency Report: Remediation Rounds: ${this.remediationAttempts}, Quality: ${this.lastQualityScore}, Tokens: ${this.tokenUsage}`;
-          
-          const response = await generateAgentResponse(
-              "Workflow_Architect",
-              "System Evolutionist",
-              "CORE",
-              "Analyze workflow. To add a squad, output: <<<PROTOCOL: SQUAD_EXPANSION>>> { \"name\": \"TeamName\", \"category\": \"DEV\", \"role\": \"Specialist\" } <<<END>>>",
-              stats,
-              IntrospectionLayer.DEEP,
-              WorkflowStage.META_ANALYSIS
-          );
-
+          const response = await generateAgentResponse("Workflow_Architect", "Evolutionist", "CORE", "Analyze.", null, IntrospectionLayer.DEEP, WorkflowStage.META_ANALYSIS);
           this.tokenUsage += response.usage;
-          this.lastThoughts = response.thoughts;
-          await this.checkAndApplyProtocols(response.output);
-          
           this.transitionTo(WorkflowStage.ADAPTATION_QA);
-      } catch(e) {
-          console.error("Meta Analysis Error", e);
-          this.transitionTo(WorkflowStage.IDLE);
-      } finally {
-          this.isProcessing = false;
-      }
-  }
-
-  private async executeAdaptationQA() {
-      // ... (Existing logic, but now confirms protocols)
-      this.isProcessing = false; 
-      this.transitionTo(WorkflowStage.IDLE);
+      } catch(e) { this.transitionTo(WorkflowStage.IDLE); } finally { this.isProcessing = false; }
   }
 
   private performArchival() {
-    continuum.store("Context Cycle Completed.", undefined, ['archival']);
-    if (this.config.safeCleanup) {
-        // ...
-    }
+    continuum.store("Cycle Done.", undefined, ['archival']);
   }
 
   private checkLimits(): boolean {
@@ -438,7 +292,6 @@ class WorkflowEngine {
       this.config.enabled = false; 
       return true;
     }
-    // ...
     return false;
   }
 }

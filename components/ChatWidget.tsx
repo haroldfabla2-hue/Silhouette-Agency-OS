@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UserRole } from '../types';
-import { MessageCircle, X, Send, Shield, User } from 'lucide-react';
-import { generateAgentResponse } from '../services/geminiService';
-import { IntrospectionLayer, WorkflowStage } from '../types';
+import { UserRole, ChatMessage } from '../types';
+import { MessageCircle, X, Send, User, RotateCcw } from 'lucide-react';
+import { DEFAULT_API_CONFIG } from '../constants';
 
 interface ChatWidgetProps {
   currentUserRole: UserRole;
@@ -12,19 +11,37 @@ interface ChatWidgetProps {
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user' | 'agent', text: string}[]>([
-      { role: 'agent', text: 'Hello. I am the Orchestrator. How can I assist you with the system today?' }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // RBAC VISIBILITY LOGIC
-  // If user is VISITOR, don't show the widget at all
-  if (currentUserRole === UserRole.VISITOR) return null;
+  // Poll for messages from backend (Phoenix Architecture)
+  useEffect(() => {
+      const fetchHistory = async () => {
+          try {
+              const res = await fetch(`http://localhost:${DEFAULT_API_CONFIG.port}/v1/chat/history`, {
+                  headers: { 'Authorization': `Bearer ${DEFAULT_API_CONFIG.apiKey}` }
+              });
+              if (res.ok) {
+                  const history = await res.json();
+                  setMessages(history);
+                  setIsConnected(true);
+              } else {
+                  setIsConnected(false);
+              }
+          } catch (e) {
+              setIsConnected(false);
+          }
+      };
 
-  // If user is CLIENT, show a limited support version
-  const isLimited = currentUserRole === UserRole.CLIENT || currentUserRole === UserRole.WORKER_L1;
+      if (isOpen) {
+          fetchHistory();
+          const interval = setInterval(fetchHistory, 2000); // Polling sync
+          return () => clearInterval(interval);
+      }
+  }, [isOpen]);
 
   useEffect(() => {
       if (scrollRef.current) {
@@ -35,39 +52,44 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
   const handleSend = async () => {
       if (!input.trim()) return;
       
-      const userMsg = input;
-      setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+      const userText = input;
       setInput('');
       setIsTyping(true);
 
+      // Optimistic Update
+      const tempMsg: ChatMessage = { id: 'temp', role: 'user', text: userText, timestamp: Date.now() };
+      setMessages(prev => [...prev, tempMsg]);
+
       try {
-          // Construct context based on role
-          const roleContext = isLimited 
-            ? "You are speaking to a CLIENT with limited permissions. Do not reveal system internals." 
-            : "You are speaking to an ADMIN. Full system access granted.";
+          const res = await fetch(`http://localhost:${DEFAULT_API_CONFIG.port}/v1/chat/completions`, {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${DEFAULT_API_CONFIG.apiKey}`
+              },
+              body: JSON.stringify({ messages: [{ role: 'user', content: userText }] })
+          });
 
-          const response = await generateAgentResponse(
-              "Orchestrator_Chat",
-              "System Admin Assistant",
-              "CORE",
-              `${roleContext} User says: ${userMsg}`,
-              null,
-              IntrospectionLayer.OPTIMAL,
-              WorkflowStage.EXECUTION
-          );
-
-          setMessages(prev => [...prev, { role: 'agent', text: response.output }]);
+          if (!res.ok) throw new Error("API Error");
+          
+          // Re-fetch handled by polling loop, but we can update state immediately for responsiveness
+          // const data = await res.json();
+          // const aiMsg = data.choices[0].message;
+          
       } catch (e) {
-          setMessages(prev => [...prev, { role: 'agent', text: "Error connecting to neural core." }]);
+          setMessages(prev => [...prev, { id: 'err', role: 'agent', text: "Connection to Immortal Backend failed. Is server/index.ts running?", timestamp: Date.now() }]);
       } finally {
           setIsTyping(false);
       }
   };
 
+  if (currentUserRole === UserRole.VISITOR) return null;
+  const isLimited = currentUserRole === UserRole.CLIENT || currentUserRole === UserRole.WORKER_L1;
+
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4">
         
-        {/* Role Switcher (For Demo Purposes) */}
+        {/* Role Switcher */}
         <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-700 backdrop-blur-md flex items-center gap-2 shadow-xl">
              <User size={14} className="text-slate-400" />
              <select 
@@ -81,14 +103,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
              </select>
         </div>
 
-        {/* Chat Window */}
         {isOpen && (
-            <div className="w-80 h-96 bg-slate-900 border border-cyan-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-10">
+            <div className="w-96 h-[500px] bg-slate-900 border border-cyan-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-10">
                 <div className="p-3 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span className="text-sm font-bold text-white">Orchestrator</span>
-                        {isLimited && <span className="text-[10px] bg-slate-800 px-1 rounded text-slate-400">LIMITED</span>}
+                        <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <div>
+                            <span className="text-sm font-bold text-white block">Orchestrator Node</span>
+                            <span className="text-[10px] text-slate-500">{isConnected ? 'Phoenix Link Active' : 'Offline Mode'}</span>
+                        </div>
                     </div>
                     <button onClick={() => setIsOpen(false)} className="text-slate-500 hover:text-white">
                         <X size={16} />
@@ -96,23 +119,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-black/20" ref={scrollRef}>
+                    {messages.length === 0 && (
+                        <div className="text-center text-slate-500 text-xs mt-10">
+                            No history found in Continuum.
+                        </div>
+                    )}
                     {messages.map((m, i) => (
-                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] p-2 rounded-lg text-xs ${
+                        <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                            <div className={`max-w-[85%] p-3 rounded-lg text-xs ${
                                 m.role === 'user' 
                                 ? 'bg-cyan-600 text-white rounded-br-none' 
                                 : 'bg-slate-800 text-slate-300 rounded-bl-none border border-slate-700'
                             }`}>
                                 {m.text}
                             </div>
+                            {m.thoughts && m.thoughts.length > 0 && !isLimited && (
+                                <div className="max-w-[85%] mt-1 pl-2 border-l-2 border-purple-500/30">
+                                    <p className="text-[9px] text-purple-400 font-mono italic truncate">{m.thoughts[0]}</p>
+                                </div>
+                            )}
                         </div>
                     ))}
                     {isTyping && (
                         <div className="flex justify-start">
                              <div className="bg-slate-800 p-2 rounded-lg rounded-bl-none flex gap-1">
-                                 <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce"></div>
-                                 <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce delay-75"></div>
-                                 <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce delay-150"></div>
+                                 <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-bounce"></div>
+                                 <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-bounce delay-75"></div>
+                                 <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-bounce delay-150"></div>
                              </div>
                         </div>
                     )}
@@ -125,12 +158,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder={isLimited ? "Ask support..." : "Command system..."}
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white focus:border-cyan-500 focus:outline-none"
+                            placeholder={isConnected ? "Issue command..." : "Connecting to backend..."}
+                            disabled={!isConnected}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white focus:border-cyan-500 focus:outline-none disabled:opacity-50"
                         />
                         <button 
                             onClick={handleSend}
-                            className="p-2 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
+                            disabled={!isConnected}
+                            className="p-2 bg-cyan-600 hover:bg-cyan-500 rounded text-white disabled:opacity-50"
                         >
                             <Send size={14} />
                         </button>
@@ -139,7 +174,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
             </div>
         )}
 
-        {/* Toggle Button */}
         {!isOpen && (
             <button 
                 onClick={() => setIsOpen(true)}

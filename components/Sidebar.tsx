@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, BrainCircuit, Database, Activity, Settings, Terminal, Shield, Sliders } from 'lucide-react';
+import { LayoutDashboard, Users, BrainCircuit, Database, Activity, Settings, Terminal, Shield, Sliders, MonitorPlay } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -14,7 +14,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'orchestrator', icon: Users, label: 'Agent Swarm (131)' },
     { id: 'introspection', icon: BrainCircuit, label: 'Introspection Hub' },
     { id: 'memory', icon: Database, label: 'Continuum Memory' },
-    { id: 'settings', icon: Settings, label: 'Settings & Config' }, // Updated
+    { id: 'dynamic_workspace', icon: MonitorPlay, label: 'Dynamic Workspace' }, // NEW
+    { id: 'settings', icon: Settings, label: 'Settings & Config' },
     { id: 'terminal', icon: Terminal, label: 'System Logs' },
   ];
 

@@ -46,11 +46,16 @@ class ContinuumMemorySystem {
     this.persistDiskTiers();
   }
 
-  public retrieve(query: string): MemoryNode[] {
+  public retrieve(query: string, filterTag?: string): MemoryNode[] {
     const all = this.getAllNodes();
     
     // Semantic Search Simulation
     const results = all.filter(n => {
+       // Filter by tag if provided (e.g. Project ID)
+       if (filterTag && !n.tags.includes(filterTag)) {
+           return false;
+       }
+
        const match = n.originalContent?.toLowerCase().includes(query.toLowerCase()) || 
                      n.tags.some(t => t.includes(query.toLowerCase()));
        if (match) {
