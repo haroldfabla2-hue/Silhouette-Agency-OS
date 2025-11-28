@@ -11,8 +11,8 @@ import ChatWidget from './components/ChatWidget';
 import Settings from './components/Settings'; 
 import ProtocolOverlay from './components/ProtocolOverlay';
 import DynamicWorkspace from './components/DynamicWorkspace'; // New
-import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer, UserRole, SystemProtocol, MorphPayload } from './types';
-import { MOCK_PROJECTS, SYSTEM_LOGS, DEFAULT_AUTONOMY_CONFIG } from './constants';
+import { Agent, SystemMetrics, SystemMode, AutonomousConfig, WorkflowStage, IntrospectionLayer, UserRole, SystemProtocol, MorphPayload, Project } from './types';
+import { SYSTEM_LOGS, DEFAULT_AUTONOMY_CONFIG } from './constants';
 import { orchestrator } from './services/orchestrator';
 import { continuum } from './services/continuumMemory';
 import { workflowEngine } from './services/workflowEngine';
@@ -20,6 +20,7 @@ import { introspection } from './services/introspectionEngine';
 import { consciousness } from './services/consciousnessEngine';
 import { settingsManager } from './services/settingsManager';
 import { systemBus } from './services/systemBus';
+import { vfs } from './services/virtualFileSystem';
 
 // Extend Window interface for non-standard Chrome memory API
 declare global {
@@ -38,15 +39,51 @@ const App: React.FC = () => {
   const [appSettings, setAppSettings] = useState(settingsManager.getSettings());
   const [uiOverride, setUiOverride] = useState<MorphPayload | null>(null);
 
+  // REAL VFS PROJECTS STATE
+  const [dashboardProjects, setDashboardProjects] = useState<Project[]>([]);
+
   // Restore active tab from local storage (Phoenix Protocol)
   useEffect(() => {
       const savedTab = localStorage.getItem('silhouette_active_tab');
       if (savedTab) setActiveTab(savedTab);
+      
+      // Initial Sync of VFS Projects
+      syncProjects();
   }, []);
 
   useEffect(() => {
       localStorage.setItem('silhouette_active_tab', activeTab);
   }, [activeTab]);
+
+  const syncProjects = () => {
+      const vfsProjs = vfs.getProjects();
+      const now = Date.now();
+      
+      const mapped: Project[] = vfsProjs.map(p => {
+          const age = now - p.createdAt;
+          // Simulate "Generating" status if created very recently (< 10 seconds)
+          let status: Project['status'] = 'active';
+          let progress = 100;
+
+          if (age < 10000) {
+             status = 'generating';
+             progress = Math.min(100, Math.floor((age / 10000) * 100));
+          } else if (age < 60000) {
+             // Simulate finishing touches
+             progress = 100;
+          }
+
+          return {
+              id: p.id,
+              name: p.name,
+              client: p.type === 'REACT' ? 'Frontend Stack' : p.type === 'NODE' ? 'Backend Service' : 'Internal',
+              status: status,
+              progress: progress,
+              assignedAgents: p.type === 'REACT' ? ['dev-lead', 'core-01'] : ['core-01']
+          };
+      });
+      setDashboardProjects(mapped);
+  };
 
   useEffect(() => {
       const u1 = systemBus.subscribe(SystemProtocol.UI_REFRESH, () => {
@@ -57,7 +94,11 @@ const App: React.FC = () => {
           setUiOverride(payload);
           setTimeout(() => setUiOverride(null), 5000);
       });
-      return () => { u1(); u2(); };
+      const u3 = systemBus.subscribe(SystemProtocol.FILESYSTEM_UPDATE, () => {
+          syncProjects();
+      });
+
+      return () => { u1(); u2(); u3(); };
   }, []);
 
   useEffect(() => {
@@ -66,6 +107,8 @@ const App: React.FC = () => {
           if (currentSettings.theme.density !== appSettings.theme.density || currentSettings.theme.mode !== appSettings.theme.mode) {
               setAppSettings(currentSettings);
           }
+          // Refresh projects periodically to update "progress" of new projects
+          syncProjects();
       }, 1000);
       return () => clearInterval(interval);
   }, [appSettings.theme.density, appSettings.theme.mode]);
@@ -97,6 +140,17 @@ const App: React.FC = () => {
   const handleIntrospectionChange = (layer: IntrospectionLayer) => {
       introspection.setLayer(layer);
       setMetrics(prev => ({ ...prev, introspectionDepth: layer }));
+  };
+
+  // --- ACTIONS ---
+  const handleCreateCampaign = () => {
+      const defaultName = `Campaign ${new Date().toLocaleDateString().replace(/\//g, '-')}`;
+      const name = prompt("SYSTEM PROTOCOL: INITIALIZE NEW CAMPAIGN\nEnter Project Identifier:", defaultName);
+      if (name) {
+          vfs.createProject(name, 'REACT');
+          // Feedback log
+          systemBus.emit(SystemProtocol.SQUAD_EXPANSION, { name: 'Campaign_Ops', category: 'MARKETING', role: 'Campaign Lead' });
+      }
   };
 
   useEffect(() => {
@@ -203,7 +257,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard metrics={metrics} projects={MOCK_PROJECTS} />;
+        return <Dashboard metrics={metrics} projects={dashboardProjects} onCreateProject={handleCreateCampaign} />;
       case 'system_control':
         return (
           <SystemControl 

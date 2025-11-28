@@ -7,6 +7,7 @@ import { SystemMetrics, Project } from '../types';
 interface DashboardProps {
   metrics: SystemMetrics;
   projects: Project[];
+  onCreateProject: () => void;
 }
 
 const MetricCard: React.FC<{ title: string; value: string | number; sub: string; icon: any; color: string; alert?: boolean }> = ({ title, value, sub, icon: Icon, color, alert }) => (
@@ -25,7 +26,7 @@ const MetricCard: React.FC<{ title: string; value: string | number; sub: string;
   </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
+const Dashboard: React.FC<DashboardProps> = ({ metrics, projects, onCreateProject }) => {
   // Use real CPU tick history for chart in a real implementation
   // Memoize data to prevent unnecessary re-calculations during render phase
   const data = useMemo(() => [
@@ -90,12 +91,6 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
             Real-Time Resource Telemetry
           </h3>
           
-          {/* 
-            FIX: Recharts Warning "width(-1)" 
-            Solution: Enforce strict block display and explicit pixel height 
-            on the parent container to ensure DOM dimensions are calculated 
-            before the chart mounts. Added minWidth/minHeight 0 to ResponsiveContainer.
-          */}
           <div style={{ width: '100%', height: '300px' }}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -126,13 +121,19 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
         <div className="glass-panel p-6 rounded-xl flex flex-col">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Globe className="text-green-400" size={20} />
-            Active Projects
+            Active Projects (VFS)
           </h3>
           <div className="flex-1 space-y-4 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+            {projects.length === 0 && (
+                <div className="text-center text-slate-500 py-8 text-xs">
+                    No active campaigns.
+                    <br/>Initialize one below.
+                </div>
+            )}
             {projects.map(p => (
-              <div key={p.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 hover:border-cyan-900/50 transition-colors">
+              <div key={p.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 hover:border-cyan-900/50 transition-colors animate-in fade-in slide-in-from-right-4">
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium text-white">{p.name}</span>
+                  <span className="text-sm font-medium text-white truncate max-w-[120px]">{p.name}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase ${
                     p.status === 'active' ? 'bg-green-500/20 text-green-400' :
                     p.status === 'generating' ? 'bg-purple-500/20 text-purple-400' :
@@ -144,12 +145,15 @@ const Dashboard: React.FC<DashboardProps> = ({ metrics, projects }) => {
                   <span>{p.progress}%</span>
                 </div>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-cyan-500 h-full rounded-full transition-all duration-500" style={{ width: `${p.progress}%` }}></div>
+                  <div className={`h-full rounded-full transition-all duration-1000 ${p.status === 'generating' ? 'bg-purple-500 animate-pulse' : 'bg-cyan-500'}`} style={{ width: `${p.progress}%` }}></div>
                 </div>
               </div>
             ))}
           </div>
-          <button className="w-full mt-4 py-2 bg-cyan-900/20 border border-cyan-800 text-cyan-400 rounded-lg hover:bg-cyan-900/40 text-sm font-mono transition-colors">
+          <button 
+            onClick={onCreateProject}
+            className="w-full mt-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-mono font-bold transition-all hover:scale-[1.02] shadow-lg shadow-cyan-900/20 active:scale-95"
+          >
             + NEW CAMPAIGN
           </button>
         </div>

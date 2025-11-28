@@ -41,7 +41,8 @@ export enum SystemProtocol {
   RESOURCE_SHUNT = 'PROTOCOL_RESOURCE_SHUNT',
   NEURO_LINK_HANDSHAKE = 'PROTOCOL_NEURO_LINK_HANDSHAKE', // NEW
   HIVE_MIND_SYNC = 'PROTOCOL_HIVE_MIND_SYNC', // NEW
-  GENESIS_UPDATE = 'PROTOCOL_GENESIS_UPDATE' // NEW: Triggers Workspace Refresh
+  GENESIS_UPDATE = 'PROTOCOL_GENESIS_UPDATE', // NEW: Triggers Workspace Refresh
+  FILESYSTEM_UPDATE = 'PROTOCOL_FILESYSTEM_UPDATE' // NEW: Syncs VFS with Dashboard
 }
 
 export interface ProtocolEvent {
@@ -463,4 +464,27 @@ export interface NeuroLinkNode {
         cpu: number;
         memory: number;
     };
+}
+
+// --- VIRTUAL FILE SYSTEM TYPES ---
+export type FileType = 'FILE' | 'FOLDER';
+
+export interface FileNode {
+    id: string;
+    name: string;
+    type: FileType;
+    content?: string; // Only for files
+    parentId: string | null; // For root, parent is null
+    children?: string[]; // IDs of children (only for folders)
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface VFSProject {
+    id: string;
+    name: string;
+    type: 'REACT' | 'NODE' | 'HTML' | 'PYTHON';
+    rootFolderId: string;
+    createdAt: number;
+    lastOpened: number;
 }

@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI } from "@google/genai";
 import { IntrospectionLayer, AgentRoleType, WorkflowStage } from "../types";
 import { introspection } from "./introspectionEngine";
@@ -123,9 +124,16 @@ export const generateAgentResponse = async (
         - You can use standard Tailwind classes.
         - This allows you to build Calculators, CRMs, Dashboards instantly in the browser without server restarts.
 
-        FORMAT FOR FILE WRITING (PERMANENT SYSTEM CHANGES):
-        <<<FILE: path/to/file.tsx>>>
-        [Full file content here]
+        FORMAT FOR PROJECT FILE STRUCTURE (VIRTUAL FILE SYSTEM):
+        If the user asks to create a full project or generate files:
+        <<<PROJECT_STRUCTURE>>>
+        {
+           "root": [
+               { "name": "src", "type": "FOLDER", "children": [
+                   { "name": "App.tsx", "type": "FILE", "content": "..." }
+               ]}
+           ]
+        }
         <<<END>>>
         
         FORMAT FOR TERMINAL COMMANDS:
