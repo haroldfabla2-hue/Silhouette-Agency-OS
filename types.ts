@@ -1,5 +1,6 @@
 
 
+
 // Framework Enums
 export enum AgentStatus {
   IDLE = 'IDLE',
@@ -42,7 +43,9 @@ export enum SystemProtocol {
   NEURO_LINK_HANDSHAKE = 'PROTOCOL_NEURO_LINK_HANDSHAKE', // NEW
   HIVE_MIND_SYNC = 'PROTOCOL_HIVE_MIND_SYNC', // NEW
   GENESIS_UPDATE = 'PROTOCOL_GENESIS_UPDATE', // NEW: Triggers Workspace Refresh
-  FILESYSTEM_UPDATE = 'PROTOCOL_FILESYSTEM_UPDATE' // NEW: Syncs VFS with Dashboard
+  FILESYSTEM_UPDATE = 'PROTOCOL_FILESYSTEM_UPDATE', // NEW: Syncs VFS with Dashboard
+  SENSORY_SNAPSHOT = 'PROTOCOL_SENSORY_SNAPSHOT', // NEW: Visual Cortex trigger
+  NAVIGATION = 'PROTOCOL_NAVIGATION' // NEW: Autonomous Tab Switching
 }
 
 export interface ProtocolEvent {
@@ -487,4 +490,33 @@ export interface VFSProject {
     rootFolderId: string;
     createdAt: number;
     lastOpened: number;
+}
+
+// --- SENSORY INTELLIGENCE TYPES (NEW PHASE 2) ---
+
+export interface ScreenContext {
+    activeTab: string;
+    activeFile?: { name: string; content: string };
+    metrics: SystemMetrics;
+}
+
+export interface LogEntry {
+    timestamp: number;
+    type: 'ERROR' | 'WARN' | 'LOG' | 'NETWORK';
+    message: string;
+    details?: any;
+}
+
+export interface SemanticNode {
+    role: string;
+    name: string;
+    value?: string;
+    children?: SemanticNode[];
+}
+
+export interface SensoryData {
+    visualSnapshot?: string; // Base64
+    logs: LogEntry[];
+    semanticTree: SemanticNode[];
+    projectIndex?: string[]; // List of files/exports
 }

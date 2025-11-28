@@ -1,19 +1,86 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { vfs } from '../services/virtualFileSystem';
 import { VFSProject, FileNode, SystemProtocol } from '../types';
 import { systemBus } from '../services/systemBus';
+import { uiContext } from '../services/uiContext'; // Import Context
 import { 
     Box, LayoutTemplate, RefreshCcw, FolderOpen, 
     Terminal as TerminalIcon, Play, Database, Server, Globe, 
     File, FileCode, FileJson, ChevronRight, ChevronDown, 
-    Plus, Trash2, Save, X, Download, HardDrive, Cpu 
+    Plus, Trash2, Save, X, Download, HardDrive, Cpu, Eye 
 } from 'lucide-react';
 
 // Access to Babel from the global scope (injected in index.html)
 declare const Babel: any;
 
-const DynamicWorkspace: React.FC = () => {
+interface DynamicWorkspaceProps {
+    initialProjectId?: string | null;
+}
+
+// --- RUNTIME COMPILER (Moved OUTSIDE to prevent re-mounting) ---
+const RuntimeApp: React.FC<{ code: string }> = ({ code }) => {
+    const [Component, setComponent] = useState<React.FC | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!code) return;
+        try {
+            // 1. Clean imports/exports for browser runtime
+            let cleanCode = code
+                .replace(/^import\s+.*$/gm, '') 
+                .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1')
+                .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, '');
+
+            // 2. Transpile TSX/JSX to JS
+            const transpiled = Babel.transform(cleanCode, { presets: ['react'] }).code;
+            
+            // 3. Create Function with injected Dependencies
+            // We inject React hooks directly so 'useState' works without 'React.useState'
+            const func = new Function('React', 'Recharts', 'Lucide', `
+                const { useState, useEffect, useMemo, useCallback, useRef, useContext, createContext } = React;
+                ${transpiled}
+                // Return the component to be rendered
+                return typeof App !== 'undefined' ? App : (() => React.createElement('div', {}, 'Error: No App component found or exported default'));
+            `);
+            
+            // 4. Execute and Retrieve Component
+            const GeneratedComponent = func(React, {}, {});
+            
+            // 5. Update State
+            setComponent(() => GeneratedComponent);
+            setError(null);
+        } catch (e: any) {
+            console.error("Compilation Error:", e);
+            setError(e.message);
+        }
+    }, [code]);
+
+    if (error) return (
+        <div className="text-red-400 text-xs p-4 bg-red-950/50 border border-red-500/30 rounded m-4 font-mono">
+            <strong>Runtime Error:</strong><br/>{error}
+            <br/><br/>
+            <span className="text-slate-500">Check console for details.</span>
+        </div>
+    );
+
+    if (!Component) return (
+        <div className="flex items-center justify-center h-full text-xs text-slate-500 font-mono animate-pulse gap-2">
+            <Cpu size={14} className="animate-spin" />
+            Compiling Hologram...
+        </div>
+    );
+
+    return (
+        <div className="w-full h-full bg-white text-black p-4 overflow-auto">
+            <Component />
+        </div>
+    );
+};
+
+const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId }) => {
     // --- STATE ---
     const [activeProject, setActiveProject] = useState<VFSProject | null>(null);
     const [projects, setProjects] = useState<VFSProject[]>([]);
@@ -46,10 +113,34 @@ const DynamicWorkspace: React.FC = () => {
     const [newProjectName, setNewProjectName] = useState('');
     const [newProjectType, setNewProjectType] = useState<VFSProject['type']>('REACT');
 
+    // REPORT CONTEXT TO AI
+    useEffect(() => {
+        const activeNode = activeFileId ? vfs.getNode(activeFileId) : null;
+        
+        uiContext.updateContext({
+            activeFile: activeNode && activeNode.type === 'FILE' 
+                ? { name: activeNode.name, content: activeNode.content || '' } 
+                : undefined
+        });
+
+        if (activeProject) {
+            uiContext.setActiveProject(activeProject.id);
+        }
+    }, [activeFileId, activeProject]);
+
     // Load Projects on Mount
     useEffect(() => {
-        setProjects(vfs.getProjects());
-    }, []);
+        const allProjects = vfs.getProjects();
+        setProjects(allProjects);
+        
+        // Auto-open project if requested via props
+        if (initialProjectId) {
+            const target = allProjects.find(p => p.id === initialProjectId);
+            if (target) {
+                setActiveProject(target);
+            }
+        }
+    }, [initialProjectId]);
 
     // Init Terminal & CWD when project activates
     useEffect(() => {
@@ -444,39 +535,29 @@ const DynamicWorkspace: React.FC = () => {
         );
     };
 
-    // RUNTIME COMPILER (Legacy Support for React Preview)
-    const RuntimeApp: React.FC<{ code: string }> = ({ code }) => {
-        const [Component, setComponent] = useState<React.FC | null>(null);
-        const [error, setError] = useState<string | null>(null);
+    // Helper to recursively find App.tsx in the VFS
+    const getPreviewCode = (): string => {
+        if (!activeProject) return "// No active project";
 
-        useEffect(() => {
-            if (!code) return;
-            try {
-                let cleanCode = code
-                    .replace(/^import\s+.*$/gm, '') 
-                    .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1')
-                    .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, '');
-
-                const transpiled = Babel.transform(cleanCode, { presets: ['react'] }).code;
-                
-                const func = new Function('React', 'Recharts', 'Lucide', `
-                    ${transpiled}
-                    return typeof App !== 'undefined' ? App : (() => React.createElement('div', {}, 'Error: No App component'));
-                `);
-                
-                // Inject Recharts and Lucide globals for the generated code
-                const GeneratedComponent = func(React, {}, {});
-                setComponent(() => GeneratedComponent);
-                setError(null);
-            } catch (e: any) {
-                console.error("Compilation Error:", e);
-                setError(e.message);
+        // Recursive search function
+        const findApp = (folderId: string): string | null => {
+            const tree = vfs.getFileTree(folderId);
+            for (const node of tree) {
+                if (node.type === 'FILE' && node.name === 'App.tsx') return node.content || null;
+                if (node.type === 'FOLDER') {
+                    const found = findApp(node.id);
+                    if (found) return found;
+                }
             }
-        }, [code]);
+            return null;
+        };
 
-        if (error) return <div className="text-red-500 text-xs p-4 border border-red-900 bg-red-900/10 rounded m-4">Compilation Error: {error}</div>;
-        if (!Component) return <div className="text-xs text-slate-500 p-4">Compiling Hologram...</div>;
-        return <div className="w-full h-full bg-white text-black p-4 overflow-auto"><Component /></div>;
+        const appCode = findApp(activeProject.rootFolderId);
+        
+        // Fallback to active file if it's open, otherwise generic message
+        if (!appCode && activeFileNode?.name.endsWith('.tsx')) return activeFileNode.content || '';
+        
+        return appCode || "// Error: Could not find 'App.tsx' in project root or src/.";
     };
 
     // --- RENDER: PROJECT SELECTOR ---
@@ -592,6 +673,7 @@ const DynamicWorkspace: React.FC = () => {
                         <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
                             <span className="flex items-center gap-1"><HardDrive size={10}/> VFS Mounted</span>
                             <span className="flex items-center gap-1"><Cpu size={10}/> 12ms Latency</span>
+                            <span className="flex items-center gap-1 text-cyan-400"><Eye size={10}/> Vision Active</span>
                         </div>
                     </div>
                 </div>
@@ -710,8 +792,8 @@ const DynamicWorkspace: React.FC = () => {
                                 </div>
                             )
                         ) : (
-                            // PREVIEW MODE
-                            <div className="flex-1 bg-white relative overflow-auto">
+                            // PREVIEW MODE - ID added for Visual Cortex
+                            <div className="flex-1 bg-white relative overflow-auto" id="workspace-preview-container">
                                 <div className="absolute top-0 left-0 right-0 bg-slate-100 border-b border-slate-300 px-2 py-1 flex items-center gap-2">
                                     <div className="flex gap-1">
                                         <div className="w-2 h-2 rounded-full bg-red-400" />
@@ -723,17 +805,8 @@ const DynamicWorkspace: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="pt-8 h-full">
-                                    {/* If it's React, try to compile 'src/App.tsx' if it exists, otherwise find something else */}
-                                    <RuntimeApp 
-                                        code={
-                                            // Naive logic: look for App.tsx first
-                                            vfs.getFileTree(activeProject.rootFolderId)
-                                                .flatMap(node => node.children ? vfs.getFileTree(node.id) : [node]) // Flatten one level
-                                                .find(f => f.name === 'App.tsx')?.content 
-                                            || activeFileNode?.content 
-                                            || "// Open App.tsx to see preview"
-                                        } 
-                                    />
+                                    {/* USE EXTERNAL COMPONENT HERE */}
+                                    <RuntimeApp code={getPreviewCode()} />
                                 </div>
                             </div>
                         )}

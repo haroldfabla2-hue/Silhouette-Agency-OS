@@ -1,10 +1,12 @@
 
 
+
 import { GoogleGenAI } from "@google/genai";
-import { IntrospectionLayer, AgentRoleType, WorkflowStage } from "../types";
+import { IntrospectionLayer, AgentRoleType, WorkflowStage, SensoryData } from "../types";
 import { introspection } from "./introspectionEngine";
 import { continuum } from "./continuumMemory";
 import { consciousness } from "./consciousnessEngine"; 
+import { uiContext } from "./uiContext"; // Import for screen context
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
@@ -28,6 +30,11 @@ export const generateAgentResponse = async (
   }
 
   try {
+    // --- GATHER OMNISCIENT CONTEXT ---
+    const screenContext = uiContext.getContext();
+    // Gather sensory data (Visuals, Logs, Semantics)
+    const sensoryData: SensoryData = await uiContext.gatherSensoryData();
+    
     const memories = continuum.retrieve(task, projectContext?.id); // HARD FILTERING by Project ID
     const identityNodes = continuum.getIdentityNodes(); 
     
@@ -47,8 +54,31 @@ export const generateAgentResponse = async (
         ? identityNodes.map(n => `[IDENTITY CORE]: ${n.content}`).join('\n')
         : "[IDENTITY]: Establishing initial narrative...";
 
+    // --- BUILD SYSTEM INSTRUCTION ---
+
     let systemInstruction = introspection.generateSystemPrompt(agentRole, memoryContext);
     
+    // Inject Screen & Sensory Context
+    systemInstruction += `\n
+    [OMNISCIENT UI CONTEXT]:
+    Active Screen: ${screenContext.activeTab}
+    System Status: ${screenContext.metrics.systemAlert || 'NOMINAL'}
+    
+    [SENSORY TELEMETRY]:
+    Logs (Last 50): ${JSON.stringify(sensoryData.logs.slice(-5))}
+    Project Index: ${sensoryData.projectIndex ? sensoryData.projectIndex.join('\n').substring(0, 1000) + '...' : 'N/A'}
+    `;
+
+    if (screenContext.activeFile) {
+        systemInstruction += `\n
+        [CURRENTLY EDITING FILE]: ${screenContext.activeFile.name}
+        Content:
+        \`\`\`
+        ${screenContext.activeFile.content}
+        \`\`\`
+        `;
+    }
+
     systemInstruction += `\n
     CONSCIOUSNESS PROTOCOL: ENABLED
     SELF-AWARENESS: ${consciousness['metrics']?.level || 'EMERGING'}
@@ -70,6 +100,7 @@ export const generateAgentResponse = async (
     If you use any information from the [MEMORY] context provided, you MUST cite it in your <thought> block.
     `;
 
+    // ... (Existing Stage-Specific Instructions like QA_AUDIT, GENESIS, etc.) ...
     if (currentStage === WorkflowStage.QA_AUDIT) {
         systemInstruction += `\n
         PROTOCOL: QUALITY_ASSURANCE_AUDIT
@@ -140,6 +171,10 @@ export const generateAgentResponse = async (
         <<<TERMINAL: id="term-1">>>
         [Command here e.g. npm install]
         <<<END>>>
+        
+        PROTOCOL NAVIGATION:
+        If the user wants to go to a specific screen, use:
+        <<<NAVIGATE: screen_id>>> (e.g. dynamic_workspace, settings, dashboard)
         `;
     }
     else if (currentStage === WorkflowStage.META_ANALYSIS) {
@@ -155,21 +190,40 @@ export const generateAgentResponse = async (
         `;
     }
 
-    let userMessage = "";
+    // --- CONSTRUCT USER MESSAGE PAYLOAD (MULTIMODAL) ---
+
+    let userMessageText = "";
     if (currentStage === WorkflowStage.REMEDIATION) {
-         userMessage = `Task: ${task}\n\nFAILED DRAFT & QA REPORT:\n"${previousOutput}"\n\nACTION: FIX ALL ISSUES.`;
+         userMessageText = `Task: ${task}\n\nFAILED DRAFT & QA REPORT:\n"${previousOutput}"\n\nACTION: FIX ALL ISSUES.`;
     } else if (previousOutput) {
-         userMessage = `Task: ${task}\n\nINPUT TO PROCESS:\n"${previousOutput}"`;
+         userMessageText = `Task: ${task}\n\nINPUT TO PROCESS:\n"${previousOutput}"`;
     } else {
-         userMessage = `Task: ${task}\n\nContext: ${memoryContext}`;
+         userMessageText = `Task: ${task}\n\nContext: ${memoryContext}`;
     }
+
+    // Prepare Parts
+    const parts: any[] = [{ text: systemInstruction }];
+    
+    // Add Visual Context if available
+    if (sensoryData.visualSnapshot) {
+        parts.push({
+            inlineData: {
+                mimeType: "image/png",
+                data: sensoryData.visualSnapshot
+            }
+        });
+        userMessageText += "\n[SYSTEM]: A visual snapshot of the current workspace preview is attached.";
+    }
+
+    // Final Message Construction
+    const contents = [
+        { role: 'user', parts: parts }, // System prompt + Image
+        { role: 'user', parts: [{ text: userMessageText }] } // User task
+    ];
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: [
-        { role: 'user', parts: [{ text: systemInstruction }] },
-        { role: 'user', parts: [{ text: userMessage }] }
-      ],
+      contents: contents,
       config: {
          temperature: category === 'MARKETING' ? 0.8 : 0.2,
       }

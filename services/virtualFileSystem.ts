@@ -1,5 +1,6 @@
 
 
+
 import { FileNode, FileType, VFSProject, SystemProtocol } from "../types";
 import { systemBus } from "./systemBus";
 
@@ -73,6 +74,72 @@ class VirtualFileSystem {
             // Notify System
             systemBus.emit(SystemProtocol.FILESYSTEM_UPDATE, { projectId, action: 'DELETE' }, 'VFS');
         }
+    }
+
+    // --- AI INGESTION (NEW) ---
+    public ingestProjectStructure(projectName: string, structure: any): string {
+        // Create blank project
+        const project = this.createProject(projectName, 'REACT');
+        
+        // Clear default scaffold (except root) to respect AI structure
+        const root = this.fileNodes.get(project.rootFolderId);
+        if (root && root.children) {
+            [...root.children].forEach(childId => this.deleteNodeRecursively(childId));
+            root.children = [];
+        }
+
+        // Recursive ingest function
+        const processNode = (parentInfo: { id: string }, node: any) => {
+            if (node.type === 'FOLDER') {
+                const folder = this.createFolder(parentInfo.id, node.name);
+                if (node.children && Array.isArray(node.children)) {
+                    node.children.forEach((child: any) => processNode(folder, child));
+                }
+            } else if (node.type === 'FILE') {
+                this.createFile(parentInfo.id, node.name, node.content || '');
+            }
+        };
+
+        // Start ingestion from root
+        if (structure.root && Array.isArray(structure.root)) {
+            structure.root.forEach((node: any) => processNode(root!, node));
+        }
+
+        this.saveToStorage();
+        return project.id;
+    }
+
+    // --- DEEP PROJECT INDEXING (MEMORY RAG) ---
+    public getProjectIndex(projectId: string): string[] {
+        const project = this.projects.find(p => p.id === projectId);
+        if (!project) return [];
+
+        const index: string[] = [];
+        
+        // Recursive Scanner
+        const scan = (folderId: string, path: string) => {
+            const children = this.getFileTree(folderId);
+            for (const child of children) {
+                if (child.type === 'FOLDER') {
+                    scan(child.id, `${path}/${child.name}`);
+                } else {
+                    const fullPath = `${path}/${child.name}`;
+                    // Extract symbols (Simple regex for export const/function/interface)
+                    const content = child.content || '';
+                    const exports = content.match(/export\s+(const|function|interface|class|type)\s+([a-zA-Z0-9_]+)/g);
+                    
+                    if (exports) {
+                        const symbols = exports.map(e => e.split(' ')[2]);
+                        index.push(`FILE: ${fullPath} | EXPORTS: ${symbols.join(', ')}`);
+                    } else {
+                        index.push(`FILE: ${fullPath}`);
+                    }
+                }
+            }
+        };
+
+        scan(project.rootFolderId, '');
+        return index;
     }
 
     // --- FILE OPERATIONS ---

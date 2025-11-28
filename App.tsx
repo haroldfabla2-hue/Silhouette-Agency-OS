@@ -41,6 +41,9 @@ const App: React.FC = () => {
 
   // REAL VFS PROJECTS STATE
   const [dashboardProjects, setDashboardProjects] = useState<Project[]>([]);
+  
+  // STATE FOR AUTO-OPENING PROJECTS IN WORKSPACE
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
 
   // Restore active tab from local storage (Phoenix Protocol)
   useEffect(() => {
@@ -147,9 +150,13 @@ const App: React.FC = () => {
       const defaultName = `Campaign ${new Date().toLocaleDateString().replace(/\//g, '-')}`;
       const name = prompt("SYSTEM PROTOCOL: INITIALIZE NEW CAMPAIGN\nEnter Project Identifier:", defaultName);
       if (name) {
-          vfs.createProject(name, 'REACT');
+          const p = vfs.createProject(name, 'REACT');
           // Feedback log
           systemBus.emit(SystemProtocol.SQUAD_EXPANSION, { name: 'Campaign_Ops', category: 'MARKETING', role: 'Campaign Lead' });
+          
+          // AUTO-NAVIGATION LOGIC
+          setPendingProjectId(p.id);
+          setActiveTab('dynamic_workspace');
       }
   };
 
@@ -281,7 +288,7 @@ const App: React.FC = () => {
       case 'memory':
         return <ContinuumMemoryExplorer />;
       case 'dynamic_workspace': // NEW
-        return <DynamicWorkspace />;
+        return <DynamicWorkspace initialProjectId={pendingProjectId} />;
       case 'settings':
         return <Settings />;
       case 'terminal':

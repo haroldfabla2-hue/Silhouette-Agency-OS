@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { UserRole, ChatMessage, IntrospectionLayer, WorkflowStage, SystemProtocol } from '../types';
 import { MessageCircle, X, Send, User, RotateCcw, Cpu, WifiOff } from 'lucide-react';
@@ -7,6 +8,7 @@ import { DEFAULT_API_CONFIG } from '../constants';
 import { generateAgentResponse } from '../services/geminiService';
 import { dynamicUi } from '../services/dynamicUiService';
 import { systemBus } from '../services/systemBus';
+import { vfs } from '../services/virtualFileSystem';
 
 interface ChatWidgetProps {
   currentUserRole: UserRole;
@@ -69,6 +71,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
       }
   }, [messages]);
 
+  // HELPER: Clean raw protocol JSON from the UI so it looks like magic
+  const cleanProtocolOutput = (text: string) => {
+      let cleaned = text;
+      // Replace UI Schema block with UI indicator
+      cleaned = cleaned.replace(/<<<UI_SCHEMA>>>[\s\S]*?<<<END>>>/g, '✨ [HOLOGRAM: Interface Generated]');
+      // Replace Project Structure block with VFS indicator
+      cleaned = cleaned.replace(/<<<PROJECT_STRUCTURE>>>[\s\S]*?<<<END>>>/g, '📂 [VFS: Project Structure Created]');
+      // Replace Terminal commands
+      cleaned = cleaned.replace(/<<<TERMINAL[\s\S]*?>>>[\s\S]*?<<<END>>>/g, '💻 [TERMINAL: Command Executed]');
+      // Replace Navigation
+      cleaned = cleaned.replace(/<<<NAVIGATE:[\s\S]*?>>>/g, '🧭 [AUTOPILOT: Navigating...]');
+      return cleaned;
+  };
+
   const handleSend = async () => {
       if (!input.trim()) return;
       
@@ -78,6 +94,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
 
       const tempMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: userText, timestamp: Date.now() };
       setMessages(prev => [...prev, tempMsg]);
+
+      // Trigger SENSORY PROTOCOL before sending message
+      systemBus.emit(SystemProtocol.SENSORY_SNAPSHOT, { trigger: 'USER_MESSAGE' });
 
       if (isLocalMode) {
           // --- LOCAL CORE SIMULATION (Direct Gemini Call) ---
@@ -92,41 +111,60 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
                   WorkflowStage.EXECUTION
               );
 
-              // PARSE UI SCHEMA (Simulate Backend Parsing)
+              // 1. PARSE PROTOCOLS
               if (response.output.includes('<<<UI_SCHEMA>>>')) {
                    const match = response.output.match(/<<<UI_SCHEMA>>>([\s\S]*?)<<<END>>>/);
                    if (match) {
                        try {
                            const schema = JSON.parse(match[1]);
-                           // Update Local Service State
                            dynamicUi.setInterfaceState({ 
                                activeAppId: schema.id, 
                                rootComponent: schema, 
                                lastUpdated: Date.now() 
                            });
-                           // Broadcast update to DynamicWorkspace
                            systemBus.emit(SystemProtocol.GENESIS_UPDATE, { schemaId: schema.id });
-                       } catch(e) {
-                           console.error("Schema parse error", e);
-                       }
+                       } catch(e) { console.error("Schema parse error", e); }
                    }
+              }
+
+              if (response.output.includes('<<<PROJECT_STRUCTURE>>>')) {
+                  const match = response.output.match(/<<<PROJECT_STRUCTURE>>>([\s\S]*?)<<<END>>>/);
+                  if (match) {
+                      try {
+                          const structure = JSON.parse(match[1]);
+                          const projectName = `Gen_${Date.now()}`;
+                          const newPid = vfs.ingestProjectStructure(projectName, structure);
+                          systemBus.emit(SystemProtocol.FILESYSTEM_UPDATE, { projectId: newPid, action: 'AI_GENERATE' });
+                      } catch(e) { console.error("VFS Ingest error", e); }
+                  }
+              }
+              
+              if (response.output.includes('<<<NAVIGATE:')) {
+                  const match = response.output.match(/<<<NAVIGATE:\s*([a-zA-Z0-9_]+)>>>/);
+                  if (match) {
+                      const screen = match[1];
+                      // Simply save preference or use event bus to switch tab. 
+                      // For simplicity, we assume App.tsx listens to a protocol or we just inform user.
+                      console.log("AI Requested Navigation to:", screen);
+                      // In a real implementation, App.tsx would subscribe to NAVIGATION protocol.
+                  }
               }
 
               const aiMsg: ChatMessage = { 
                   id: crypto.randomUUID(), 
                   role: 'agent', 
-                  text: response.output, 
+                  text: cleanProtocolOutput(response.output), 
                   timestamp: Date.now(), 
                   thoughts: response.thoughts 
               };
               setMessages(prev => [...prev, aiMsg]);
-          } catch (e) {
-              setMessages(prev => [...prev, { id: 'err', role: 'agent', text: "Local Core Error: " + e, timestamp: Date.now() }]);
+          } catch (e: any) {
+              setMessages(prev => [...prev, { id: 'err', role: 'agent', text: "Local Core Error: " + e.message, timestamp: Date.now() }]);
           } finally {
               setIsTyping(false);
           }
       } else {
-          // --- SERVER MODE ---
+          // --- SERVER MODE (Standard API) ---
           try {
               const res = await fetch(`http://localhost:${DEFAULT_API_CONFIG.port}/v1/chat/completions`, {
                   method: 'POST',
@@ -138,6 +176,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
               });
 
               if (!res.ok) throw new Error("API Error");
+              
+              const data = await res.json();
+              const cleanedText = cleanProtocolOutput(data.choices[0].message.content);
+              const thoughts = data.choices[0].message.thoughts || [];
+
+              setMessages(prev => [...prev, { 
+                  id: crypto.randomUUID(), 
+                  role: 'agent', 
+                  text: cleanedText, 
+                  timestamp: Date.now(),
+                  thoughts: thoughts
+              }]);
+
           } catch (e) {
               setMessages(prev => [...prev, { id: 'err', role: 'agent', text: "Connection failed. Switching to Local Mode...", timestamp: Date.now() }]);
               setIsLocalMode(true);
