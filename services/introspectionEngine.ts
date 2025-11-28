@@ -1,6 +1,6 @@
-
-import { IntrospectionLayer, IntrospectionResult, ConceptVector, IntrospectionCapability } from "../types";
+import { IntrospectionLayer, IntrospectionResult, ConceptVector, IntrospectionCapability, SystemProtocol } from "../types";
 import { continuum } from "./continuumMemory";
+import { systemBus } from "./systemBus";
 
 // --- ANTHROPIC INTROSPECTION ENGINE V2.0 ---
 // Implements the 5 Core Capabilities:
@@ -13,6 +13,7 @@ import { continuum } from "./continuumMemory";
 export class IntrospectionEngine {
   private currentLayer: IntrospectionLayer = IntrospectionLayer.OPTIMAL;
   private activeConcepts: ConceptVector[] = [];
+  private recentThoughts: string[] = []; // Central Store for UI
   
   // Capability Status (Simulated hardware flags)
   private capabilities: Set<IntrospectionCapability> = new Set([
@@ -55,6 +56,18 @@ export class IntrospectionEngine {
 
   public getLayer(): IntrospectionLayer {
       return this.currentLayer;
+  }
+
+  // --- CENTRAL THOUGHT HUB (NEW) ---
+  public setRecentThoughts(thoughts: string[]) {
+      if (!thoughts || thoughts.length === 0) return;
+      this.recentThoughts = thoughts;
+      // Emit event for real-time overlays and system bus logging
+      systemBus.emit(SystemProtocol.THOUGHT_EMISSION, { thoughts }, 'INTROSPECTION_ENGINE');
+  }
+
+  public getRecentThoughts(): string[] {
+      return this.recentThoughts;
   }
 
   // --- CAPABILITY 3: ACTIVATION STEERING (Prompt Engineering) ---

@@ -1,6 +1,3 @@
-
-
-
 // Framework Enums
 export enum AgentStatus {
   IDLE = 'IDLE',
@@ -45,7 +42,8 @@ export enum SystemProtocol {
   GENESIS_UPDATE = 'PROTOCOL_GENESIS_UPDATE', // NEW: Triggers Workspace Refresh
   FILESYSTEM_UPDATE = 'PROTOCOL_FILESYSTEM_UPDATE', // NEW: Syncs VFS with Dashboard
   SENSORY_SNAPSHOT = 'PROTOCOL_SENSORY_SNAPSHOT', // NEW: Visual Cortex trigger
-  NAVIGATION = 'PROTOCOL_NAVIGATION' // NEW: Autonomous Tab Switching
+  NAVIGATION = 'PROTOCOL_NAVIGATION', // NEW: Autonomous Tab Switching
+  THOUGHT_EMISSION = 'PROTOCOL_THOUGHT_EMISSION' // NEW: Real-time neural stream
 }
 
 export interface ProtocolEvent {

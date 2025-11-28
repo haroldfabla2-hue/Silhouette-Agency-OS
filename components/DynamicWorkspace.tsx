@@ -1,14 +1,12 @@
-
-
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component as ReactComponent, ReactNode } from 'react';
+import * as Recharts from 'recharts';
+import * as Lucide from 'lucide-react';
 import { vfs } from '../services/virtualFileSystem';
-import { VFSProject, FileNode, SystemProtocol } from '../types';
-import { systemBus } from '../services/systemBus';
-import { uiContext } from '../services/uiContext'; // Import Context
+import { VFSProject, FileNode } from '../types';
+import { uiContext } from '../services/uiContext';
 import { 
-    Box, LayoutTemplate, RefreshCcw, FolderOpen, 
-    Terminal as TerminalIcon, Play, Database, Server, Globe, 
+    LayoutTemplate, RefreshCcw, FolderOpen, 
+    Terminal as TerminalIcon, Play, Server, Globe, 
     File, FileCode, FileJson, ChevronRight, ChevronDown, 
     Plus, Trash2, Save, X, Download, HardDrive, Cpu, Eye 
 } from 'lucide-react';
@@ -20,63 +18,135 @@ interface DynamicWorkspaceProps {
     initialProjectId?: string | null;
 }
 
-// --- RUNTIME COMPILER (Moved OUTSIDE to prevent re-mounting) ---
+interface ErrorBoundaryProps {
+    children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error: string | null;
+}
+
+// --- ERROR BOUNDARY COMPONENT ---
+class ErrorBoundary extends ReactComponent<ErrorBoundaryProps, ErrorBoundaryState> {
+    constructor(props: ErrorBoundaryProps) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error: any): ErrorBoundaryState {
+        return { hasError: true, error: error.toString() };
+    }
+
+    componentDidCatch(error: any, errorInfo: any) {
+        console.error("Runtime App Error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center bg-red-950/20 text-red-400 p-6 text-center">
+                    <div className="p-4 bg-red-900/20 rounded-full mb-4 border border-red-500/30">
+                        <Trash2 size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold mb-2">Runtime Crash detected</h3>
+                    <pre className="text-xs font-mono bg-black/50 p-4 rounded border border-red-900/50 max-w-full overflow-auto text-left">
+                        {this.state.error}
+                    </pre>
+                    <button 
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold"
+                    >
+                        RESET PREVIEW
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+// --- RUNTIME COMPILER ---
 const RuntimeApp: React.FC<{ code: string }> = ({ code }) => {
     const [Component, setComponent] = useState<React.FC | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [compileError, setCompileError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!code) return;
-        try {
-            // 1. Clean imports/exports for browser runtime
-            let cleanCode = code
-                .replace(/^import\s+.*$/gm, '') 
-                .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1')
-                .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, '');
+        
+        // Simple heuristic to ignore empty/comment-only files
+        if (code.trim().startsWith('//') && code.length < 50) {
+            setComponent(null);
+            return;
+        }
 
-            // 2. Transpile TSX/JSX to JS
-            const transpiled = Babel.transform(cleanCode, { presets: ['react'] }).code;
+        try {
+            // 1. TRANSFORM IMPORTS TO DESTRUCTURING
+            // This allows 'import { LineChart } from "recharts"' to work with our injected object
+            let cleanCode = code
+                // Handle React imports
+                .replace(/import\s+React,?\s*{([^}]*)}\s+from\s+['"]react['"];?/g, 'const {$1} = React;')
+                .replace(/import\s+React\s+from\s+['"]react['"];?/g, '') // Remove plain import if handled
+                // Handle Recharts
+                .replace(/import\s+{([^}]+)}\s+from\s+['"]recharts['"];?/g, 'const {$1} = Recharts;')
+                // Handle Lucide
+                .replace(/import\s+{([^}]+)}\s+from\s+['"]lucide-react['"];?/g, 'const {$1} = Lucide;')
+                // Convert default exports to return statements for the function body
+                .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'return function $1')
+                .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, 'return $1;')
+                // Clean any remaining imports we didn't catch (fallback)
+                .replace(/^import\s+.*$/gm, '');
+
+            // 2. TRANSPILE TSX -> JS
+            const transpiled = Babel.transform(cleanCode, { 
+                presets: ['react', ['env', { modules: false }]],
+                filename: 'file.tsx'
+            }).code;
             
-            // 3. Create Function with injected Dependencies
-            // We inject React hooks directly so 'useState' works without 'React.useState'
+            // 3. CREATE FUNCTION WITH INJECTED SCOPE
             const func = new Function('React', 'Recharts', 'Lucide', `
                 const { useState, useEffect, useMemo, useCallback, useRef, useContext, createContext } = React;
-                ${transpiled}
-                // Return the component to be rendered
-                return typeof App !== 'undefined' ? App : (() => React.createElement('div', {}, 'Error: No App component found or exported default'));
+                try {
+                    ${transpiled}
+                } catch(e) {
+                    throw e;
+                }
+                // Fallback return if no export default was found
+                return typeof App !== 'undefined' ? App : (() => React.createElement('div', {className:'text-slate-500 p-4'}, 'No "export default" component found.'));
             `);
             
-            // 4. Execute and Retrieve Component
-            const GeneratedComponent = func(React, {}, {});
+            // 4. EXECUTE FACTORY
+            // Pass the REAL library objects here
+            const GeneratedComponent = func(React, Recharts, Lucide);
             
-            // 5. Update State
             setComponent(() => GeneratedComponent);
-            setError(null);
+            setCompileError(null);
+
         } catch (e: any) {
             console.error("Compilation Error:", e);
-            setError(e.message);
+            setCompileError(e.message);
         }
     }, [code]);
 
-    if (error) return (
+    if (compileError) return (
         <div className="text-red-400 text-xs p-4 bg-red-950/50 border border-red-500/30 rounded m-4 font-mono">
-            <strong>Runtime Error:</strong><br/>{error}
-            <br/><br/>
-            <span className="text-slate-500">Check console for details.</span>
+            <strong>Compilation Failed:</strong><br/>{compileError}
         </div>
     );
 
     if (!Component) return (
-        <div className="flex items-center justify-center h-full text-xs text-slate-500 font-mono animate-pulse gap-2">
-            <Cpu size={14} className="animate-spin" />
-            Compiling Hologram...
+        <div className="flex flex-col items-center justify-center h-full text-xs text-slate-500 font-mono gap-2">
+            <Cpu size={24} className="animate-spin text-cyan-500" />
+            <span className="animate-pulse">Compiling Neural Hologram...</span>
         </div>
     );
 
     return (
-        <div className="w-full h-full bg-white text-black p-4 overflow-auto">
-            <Component />
-        </div>
+        <ErrorBoundary>
+            <div className="w-full h-full bg-white text-black p-4 overflow-auto">
+                <Component />
+            </div>
+        </ErrorBoundary>
     );
 };
 
@@ -133,7 +203,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         const allProjects = vfs.getProjects();
         setProjects(allProjects);
         
-        // Auto-open project if requested via props
         if (initialProjectId) {
             const target = allProjects.find(p => p.id === initialProjectId);
             if (target) {
@@ -151,17 +220,14 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                 `Type \x1b[1;33mhelp\x1b[0m for available commands.`,
                 `Mounted VFS: /mnt/${activeProject.name.toLowerCase().replace(/\s/g, '-')}`
             ]);
-            // Auto expand root
             setExpandedFolders(new Set([activeProject.rootFolderId]));
         }
     }, [activeProject]);
 
-    // Auto-scroll terminal
     useEffect(() => {
         terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [terminalLines]);
 
-    // Load active file content into editor when switching
     const activeFileNode = activeFileId ? vfs.getNode(activeFileId) : null;
 
     // --- ACTIONS ---
@@ -180,7 +246,7 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
             setOpenFiles([...openFiles, file]);
         }
         setActiveFileId(file.id);
-        setActiveTab('CODE'); // Switch to code view
+        setActiveTab('CODE');
     };
 
     const handleCloseFile = (e: React.MouseEvent, fileId: string) => {
@@ -231,7 +297,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         const name = prompt("File Name (e.g. Component.tsx):");
         if (name) {
             vfs.createFile(folderId, name, "// New file");
-            // Force re-render of tree
             toggleFolder(folderId); 
             toggleFolder(folderId); 
             forceUpdate();
@@ -255,7 +320,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
     };
 
     // --- TERMINAL LOGIC ---
-
     const getPathString = (nodeId: string): string => {
         if (!activeProject || nodeId === activeProject.rootFolderId) return '~';
         let parts = [];
@@ -275,10 +339,9 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         const parts = pathStr.split('/').filter(p => p !== '' && p !== '.');
         let currentId = startNodeId;
         
-        // Handle absolute path starting with ~ or /
         if (pathStr.startsWith('~') || pathStr.startsWith('/')) {
             currentId = activeProject!.rootFolderId;
-            if (pathStr.startsWith('~/')) parts.shift(); // Remove ~
+            if (pathStr.startsWith('~/')) parts.shift();
         }
 
         for (const part of parts) {
@@ -333,7 +396,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
     const executeCommand = (fullCmd: string) => {
         if (!fullCmd.trim()) return;
         
-        // Check for redirection >
         const redirectSplit = fullCmd.split('>');
         const cmdPart = redirectSplit[0].trim();
         const redirectFile = redirectSplit.length > 1 ? redirectSplit[1].trim() : null;
@@ -343,19 +405,12 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         const [cmd, ...args] = cmdPart.split(' ').filter(Boolean);
 
         try {
-            // Helper to get output content
             let output = '';
             
             switch (cmd) {
-                case 'help':
-                    output = 'Commands: ls, cd, pwd, mkdir, touch, rm, cat, echo, cp, mv, clear, npm';
-                    break;
-                case 'clear':
-                    setTerminalLines([]);
-                    return;
-                case 'pwd':
-                    output = getPathString(cwdId!);
-                    break;
+                case 'help': output = 'Commands: ls, cd, pwd, mkdir, touch, rm, cat, echo, cp, mv, clear, npm'; break;
+                case 'clear': setTerminalLines([]); return;
+                case 'pwd': output = getPathString(cwdId!); break;
                 case 'ls':
                     const targetPath = args[0] || '.';
                     const targetNode = resolvePathNode(cwdId!, targetPath);
@@ -364,14 +419,10 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                         if (children.length === 0) output = '(empty)';
                         else {
                             output = children.map(c => 
-                                c.type === 'FOLDER' 
-                                ? `\x1b[1;34m${c.name}/\x1b[0m` 
-                                : c.name
+                                c.type === 'FOLDER' ? `\x1b[1;34m${c.name}/\x1b[0m` : c.name
                             ).join('   ');
                         }
-                    } else {
-                        output = `ls: cannot access '${targetPath}': No such file or directory`;
-                    }
+                    } else output = `ls: cannot access '${targetPath}'`;
                     break;
                 case 'cd':
                     const cdPath = args[0] || '~';
@@ -379,104 +430,45 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                     if (cdNode && cdNode.type === 'FOLDER') {
                         setCwdId(cdNode.id);
                         setExpandedFolders(prev => new Set(prev).add(cdNode.id));
-                    } else {
-                        output = `cd: no such file or directory: ${cdPath}`;
-                    }
+                    } else output = `cd: no such file: ${cdPath}`;
                     break;
                 case 'mkdir':
-                    if (args[0]) {
-                        vfs.createFolder(cwdId!, args[0]);
-                        output = `Created directory: ${args[0]}`;
-                        forceUpdate();
-                    } else output = 'usage: mkdir <name>';
+                    if (args[0]) { vfs.createFolder(cwdId!, args[0]); output = `Created directory: ${args[0]}`; forceUpdate(); }
+                    else output = 'usage: mkdir <name>';
                     break;
                 case 'touch':
-                    if (args[0]) {
-                        vfs.createFile(cwdId!, args[0], '');
-                        output = `Created file: ${args[0]}`;
-                        forceUpdate();
-                    } else output = 'usage: touch <name>';
+                    if (args[0]) { vfs.createFile(cwdId!, args[0], ''); output = `Created file: ${args[0]}`; forceUpdate(); }
+                    else output = 'usage: touch <name>';
                     break;
-                case 'echo':
-                    output = args.join(' ').replace(/"/g, '');
-                    break;
+                case 'echo': output = args.join(' ').replace(/"/g, ''); break;
                 case 'cat':
                     if (args[0]) {
-                        const fileNode = resolvePathNode(cwdId!, args[0]);
-                        if (fileNode && fileNode.type === 'FILE') output = fileNode.content || '';
+                        const f = resolvePathNode(cwdId!, args[0]);
+                        if (f && f.type === 'FILE') output = f.content || '';
                         else output = `cat: ${args[0]}: No such file`;
                     } else output = 'usage: cat <file>';
                     break;
                 case 'rm':
                     if (args[0]) {
-                        const delNode = resolvePathNode(cwdId!, args[0]);
-                        if (delNode) {
-                            vfs.deleteNode(delNode.id);
-                            output = `Removed: ${args[0]}`;
-                            forceUpdate();
-                        } else output = `rm: cannot remove '${args[0]}': No such file`;
+                        const n = resolvePathNode(cwdId!, args[0]);
+                        if (n) { vfs.deleteNode(n.id); output = `Removed: ${args[0]}`; forceUpdate(); }
+                        else output = `rm: no such file`;
                     } else output = 'usage: rm <file>';
-                    break;
-                case 'cp':
-                    // Real Copy implementation
-                    if (args.length === 2) {
-                        const src = resolvePathNode(cwdId!, args[0]);
-                        if (src && src.type === 'FILE') {
-                             vfs.createFile(cwdId!, args[1], src.content);
-                             output = `Copied ${src.name} to ${args[1]}`;
-                             forceUpdate();
-                        } else output = `cp: cannot stat '${args[0]}'`;
-                    } else output = 'usage: cp <source> <dest>';
-                    break;
-                case 'mv':
-                    // Rename simulation (delete + create)
-                     if (args.length === 2) {
-                        const src = resolvePathNode(cwdId!, args[0]);
-                        if (src) {
-                            // Cloning content then deleting old
-                            const content = src.type === 'FILE' ? src.content : '';
-                            if (src.type === 'FILE') vfs.createFile(cwdId!, args[1], content);
-                            else vfs.createFolder(cwdId!, args[1]); // Simplified folder move
-                            vfs.deleteNode(src.id);
-                            output = `Renamed ${args[0]} -> ${args[1]}`;
-                            forceUpdate();
-                        } else output = `mv: cannot stat '${args[0]}'`;
-                     } else output = 'usage: mv <source> <dest>';
                     break;
                 case 'npm':
                     if (args[0] === 'install' || args[0] === 'i') {
-                        const pkg = args[1] || 'packages';
+                        const pkg = args[1] || 'deps';
                         logTerminal(`\x1b[32m[npm] Installing ${pkg}...\x1b[0m`);
-                        // Real VFS interaction: Create node_modules if not exists
-                        let nm = resolvePathNode(activeProject!.rootFolderId, 'node_modules');
-                        if (!nm) {
-                             nm = vfs.createFolder(activeProject!.rootFolderId, 'node_modules');
-                        }
-                        if (args[1] && nm) {
-                            vfs.createFolder(nm.id, args[1]);
-                        }
-                        forceUpdate();
-                        setTimeout(() => {
-                            logTerminal(`\x1b[32m+ ${pkg}@1.0.0\x1b[0m`);
-                            logTerminal(`added 1 package in 450ms`);
-                        }, 500);
-                        return; // Async log handled above
+                        setTimeout(() => { logTerminal(`\x1b[32m+ ${pkg}@latest\x1b[0m`); logTerminal(`added packages in 400ms`); }, 600);
+                        return;
                     } else if (args[0] === 'start') {
                         setActiveTab('PREVIEW');
                         output = '> vite dev server running...';
                     }
                     break;
-                case 'whoami':
-                    output = 'root';
-                    break;
-                case 'date':
-                    output = new Date().toString();
-                    break;
-                default:
-                    output = `Command not found: ${cmd}`;
+                default: output = `Command not found: ${cmd}`;
             }
 
-            // Handle Redirection >
             if (redirectFile) {
                 vfs.createFile(cwdId!, redirectFile, output);
                 logTerminal(`Redirected output to ${redirectFile}`);
@@ -484,20 +476,18 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
             } else if (output) {
                 logTerminal(output);
             }
-
         } catch (e: any) {
             logTerminal(`\x1b[31mError: ${e.message}\x1b[0m`);
         }
     };
 
     // --- COMPONENTS ---
-
     const FileTreeItem: React.FC<{ node: FileNode, depth: number }> = ({ node, depth }) => {
         const isExpanded = expandedFolders.has(node.id);
         const isFile = node.type === 'FILE';
         const Icon = isFile 
             ? (node.name.endsWith('tsx') ? FileCode : node.name.endsWith('json') ? FileJson : File)
-            : (isExpanded ? FolderOpen : FolderOpen); // Can use closed folder icon
+            : FolderOpen;
 
         return (
             <div>
@@ -511,7 +501,7 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                             {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                         </span>
                     )}
-                    {isFile && <span className="w-2.5" />} {/* Spacer */}
+                    {isFile && <span className="w-2.5" />}
                     <Icon size={14} className={node.type === 'FOLDER' ? 'text-yellow-500' : 'text-blue-400'} />
                     <span className="truncate">{node.name}</span>
                     
@@ -525,7 +515,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                         </button>
                     )}
                 </div>
-                {/* Recursive Children */}
                 {!isFile && isExpanded && (
                     vfs.getFileTree(node.id).map(child => (
                         <FileTreeItem key={child.id} node={child} depth={depth + 1} />
@@ -535,11 +524,10 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         );
     };
 
-    // Helper to recursively find App.tsx in the VFS
     const getPreviewCode = (): string => {
         if (!activeProject) return "// No active project";
-
-        // Recursive search function
+        
+        // Recursive search for App.tsx
         const findApp = (folderId: string): string | null => {
             const tree = vfs.getFileTree(folderId);
             for (const node of tree) {
@@ -553,14 +541,11 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         };
 
         const appCode = findApp(activeProject.rootFolderId);
-        
-        // Fallback to active file if it's open, otherwise generic message
         if (!appCode && activeFileNode?.name.endsWith('.tsx')) return activeFileNode.content || '';
-        
-        return appCode || "// Error: Could not find 'App.tsx' in project root or src/.";
+        return appCode || "// Error: Could not find 'App.tsx' in project.";
     };
 
-    // --- RENDER: PROJECT SELECTOR ---
+    // --- RENDER ---
     if (!activeProject) {
         return (
             <div className="h-full flex flex-col gap-6 p-8 items-center justify-center animate-in fade-in zoom-in-95">
@@ -586,23 +571,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                                     placeholder="my-awesome-app"
                                 />
                             </div>
-                            <div>
-                                <label className="text-xs text-slate-400 uppercase font-bold block mb-1">Tech Stack</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button 
-                                        onClick={() => setNewProjectType('REACT')}
-                                        className={`p-2 rounded border text-xs font-bold ${newProjectType === 'REACT' ? 'bg-cyan-900/30 border-cyan-500 text-cyan-400' : 'bg-slate-950 border-slate-800 text-slate-500'}`}
-                                    >
-                                        React + Vite
-                                    </button>
-                                    <button 
-                                        onClick={() => setNewProjectType('NODE')}
-                                        className={`p-2 rounded border text-xs font-bold ${newProjectType === 'NODE' ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-slate-950 border-slate-800 text-slate-500'}`}
-                                    >
-                                        Node.js API
-                                    </button>
-                                </div>
-                            </div>
                             <div className="flex gap-2 pt-2">
                                 <button onClick={() => setIsCreatingProject(false)} className="flex-1 py-2 text-xs text-slate-400 hover:text-white">Cancel</button>
                                 <button onClick={handleCreateProject} disabled={!newProjectName} className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold text-xs disabled:opacity-50">Create Project</button>
@@ -611,7 +579,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                     </div>
                 ) : (
                     <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* New Project Card */}
                         <button 
                             onClick={() => setIsCreatingProject(true)}
                             className="h-32 rounded-xl border border-dashed border-slate-700 bg-slate-900/20 hover:bg-slate-900/50 hover:border-cyan-500/50 flex flex-col items-center justify-center gap-2 group transition-all"
@@ -622,7 +589,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                             <span className="text-sm font-bold text-slate-400 group-hover:text-white">Create New Project</span>
                         </button>
 
-                        {/* Existing Projects */}
                         {projects.map(p => (
                             <div 
                                 key={p.id}
@@ -632,20 +598,14 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                                 <div>
                                     <div className="flex justify-between items-start">
                                         <h3 className="text-white font-bold truncate pr-4">{p.name}</h3>
-                                        <button 
-                                            onClick={(e) => handleDeleteProject(e, p.id)}
-                                            className="text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
+                                        <button onClick={(e) => handleDeleteProject(e, p.id)} className="text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Trash2 size={14} />
                                         </button>
                                     </div>
                                     <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-1">
                                         {p.type === 'REACT' ? <Globe size={10} /> : <Server size={10} />}
-                                        {p.type} Application
+                                        {p.type} App
                                     </span>
-                                </div>
-                                <div className="text-[10px] text-slate-600 font-mono">
-                                    Last opened: {new Date(p.lastOpened).toLocaleDateString()}
                                 </div>
                             </div>
                         ))}
@@ -655,13 +615,13 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
         );
     }
 
-    // --- RENDER: WORKSPACE ---
+    // --- RENDER WORKSPACE ---
     return (
         <div className="h-full flex flex-col gap-4 animate-in fade-in">
             {/* Toolbar */}
             <div className="glass-panel p-2 rounded-xl flex justify-between items-center">
                 <div className="flex items-center gap-3 px-2">
-                    <button onClick={() => setActiveProject(null)} className="text-slate-500 hover:text-white transition-colors" title="Back to Projects">
+                    <button onClick={() => setActiveProject(null)} className="text-slate-500 hover:text-white transition-colors">
                         <LayoutTemplate size={18} />
                     </button>
                     <div className="h-4 w-px bg-slate-700 mx-1"></div>
@@ -672,7 +632,6 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                         </h1>
                         <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
                             <span className="flex items-center gap-1"><HardDrive size={10}/> VFS Mounted</span>
-                            <span className="flex items-center gap-1"><Cpu size={10}/> 12ms Latency</span>
                             <span className="flex items-center gap-1 text-cyan-400"><Eye size={10}/> Vision Active</span>
                         </div>
                     </div>
@@ -680,7 +639,7 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                 
                 <div className="flex gap-2">
                     <button onClick={handleDownload} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs border border-slate-700 transition-all">
-                        <Download size={12} /> Pack & Export
+                        <Download size={12} /> Export
                     </button>
                     <div className="flex bg-slate-900 rounded p-1 border border-slate-800">
                         <button onClick={() => setActiveTab('CODE')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${activeTab === 'CODE' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-white'}`}>
@@ -693,10 +652,9 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                 </div>
             </div>
 
-            {/* Main Workspace Area */}
+            {/* Content */}
             <div className="flex-1 flex gap-4 overflow-hidden">
-                
-                {/* File Explorer */}
+                {/* Explorer */}
                 <div className="w-56 glass-panel rounded-xl flex flex-col overflow-hidden border-r border-slate-800">
                     <div className="p-3 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
                         <span className="text-xs font-bold text-slate-400 uppercase">Explorer</span>
@@ -706,15 +664,14 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                        {/* Recursive Tree */}
                         <FileTreeItem node={vfs.getNode(activeProject.rootFolderId)!} depth={0} />
                     </div>
                 </div>
 
-                {/* Editor Area */}
+                {/* Editor/Preview */}
                 <div className="flex-1 flex flex-col glass-panel rounded-xl overflow-hidden relative border border-slate-800 bg-slate-950">
                     
-                    {/* Tab Bar */}
+                    {/* Tabs */}
                     <div className="h-9 bg-slate-950 flex items-end px-2 gap-1 overflow-x-auto border-b border-slate-800 no-scrollbar">
                         {openFiles.map(file => (
                             <div 
@@ -730,35 +687,27 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                             >
                                 <span className={`truncate flex-1 ${unsavedChanges.has(file.id) ? 'italic' : ''}`}>{file.name}</span>
                                 {unsavedChanges.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />}
-                                <button 
-                                    onClick={(e) => handleCloseFile(e, file.id)}
-                                    className="opacity-0 group-hover:opacity-100 hover:text-red-400"
-                                >
+                                <button onClick={(e) => handleCloseFile(e, file.id)} className="opacity-0 group-hover:opacity-100 hover:text-red-400">
                                     <X size={12} />
                                 </button>
                             </div>
                         ))}
                     </div>
 
-                    {/* Content */}
+                    {/* View */}
                     <div className="flex-1 relative flex flex-col overflow-hidden">
                         {activeTab === 'CODE' ? (
                             activeFileNode ? (
                                 <div className="flex-1 relative flex overflow-hidden">
-                                    {/* Line Numbers Gutter */}
                                     <div className="w-10 bg-slate-950 border-r border-slate-800 text-slate-600 text-xs font-mono text-right py-4 pr-2 select-none opacity-50 overflow-hidden">
-                                        {(activeFileNode.content || '').split('\n').map((_, i) => (
-                                            <div key={i} className="leading-6">{i + 1}</div>
-                                        ))}
+                                        {(activeFileNode.content || '').split('\n').map((_, i) => <div key={i} className="leading-6">{i + 1}</div>)}
                                     </div>
-                                    {/* Editor Textarea */}
                                     <textarea 
                                         className="flex-1 bg-slate-900/30 p-4 font-mono text-sm text-slate-300 resize-none outline-none leading-6 whitespace-pre overflow-auto custom-scrollbar"
                                         value={activeFileNode.content || ''}
                                         onChange={(e) => handleFileChange(e.target.value)}
                                         spellCheck={false}
                                         onKeyDown={(e) => {
-                                            // Smart Indent simulation
                                             if (e.key === 'Tab') {
                                                 e.preventDefault();
                                                 const start = e.currentTarget.selectionStart;
@@ -773,13 +722,8 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                                             }
                                         }}
                                     />
-                                    {/* Save FAB */}
                                     {unsavedChanges.has(activeFileId!) && (
-                                        <button 
-                                            onClick={handleSave}
-                                            className="absolute bottom-6 right-6 p-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-lg transition-transform hover:scale-110"
-                                            title="Save (Ctrl+S)"
-                                        >
+                                        <button onClick={handleSave} className="absolute bottom-6 right-6 p-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-lg transition-transform hover:scale-110" title="Save">
                                             <Save size={18} />
                                         </button>
                                     )}
@@ -787,12 +731,10 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
                                     <FileCode size={48} className="mb-4 opacity-20" />
-                                    <p className="text-sm">Select a file from Explorer to edit.</p>
-                                    <p className="text-xs text-slate-700 mt-2">Ctrl+S to save changes.</p>
+                                    <p className="text-sm">Select a file to edit.</p>
                                 </div>
                             )
                         ) : (
-                            // PREVIEW MODE - ID added for Visual Cortex
                             <div className="flex-1 bg-white relative overflow-auto" id="workspace-preview-container">
                                 <div className="absolute top-0 left-0 right-0 bg-slate-100 border-b border-slate-300 px-2 py-1 flex items-center gap-2">
                                     <div className="flex gap-1">
@@ -805,14 +747,13 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                                     </div>
                                 </div>
                                 <div className="pt-8 h-full">
-                                    {/* USE EXTERNAL COMPONENT HERE */}
                                     <RuntimeApp code={getPreviewCode()} />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Interactive Terminal Pane */}
+                    {/* Terminal */}
                     <div 
                         className="h-48 bg-black border-t border-slate-800 p-2 overflow-y-auto custom-scrollbar font-mono text-xs flex flex-col" 
                         onClick={() => terminalInputRef.current?.focus()}
@@ -820,27 +761,13 @@ const DynamicWorkspace: React.FC<DynamicWorkspaceProps> = ({ initialProjectId })
                          <div className="flex items-center gap-2 text-slate-500 mb-1 sticky top-0 bg-black py-1 border-b border-slate-800/50">
                              <TerminalIcon size={12} /> Console Output
                          </div>
-                         {terminalLines.map((line, i) => {
-                             // Simple ANSI color parsing for "Realness"
-                             const parts = line.split(/(\x1b\[[0-9;]*m)/g);
-                             return (
-                                 <div key={i} className="whitespace-pre-wrap break-all leading-tight mb-0.5">
-                                    {parts.map((part, idx) => {
-                                        if (part.startsWith('\x1b')) return null; // skip codes for now or handle them
-                                        // Simple heuristic styling based on codes
-                                        let className = "text-slate-400";
-                                        if (line.includes('[32m') && !part.startsWith('\x1b')) className = "text-green-400";
-                                        if (line.includes('[31m') && !part.startsWith('\x1b')) className = "text-red-400";
-                                        if (line.includes('[36m') && !part.startsWith('\x1b')) className = "text-cyan-400";
-                                        if (line.includes('[33m') && !part.startsWith('\x1b')) className = "text-yellow-400";
-                                        
-                                        return <span key={idx} className={className}>{part}</span>
-                                    })}
-                                    {parts.length === 1 && <span className="text-slate-400">{line}</span>}
-                                 </div>
-                             );
-                         })}
-                         
+                         {terminalLines.map((line, i) => (
+                             <div key={i} className="whitespace-pre-wrap break-all leading-tight mb-0.5">
+                                <span className={line.includes('[32m') ? "text-green-400" : line.includes('[31m') ? "text-red-400" : line.includes('[36m') ? "text-cyan-400" : "text-slate-400"}>
+                                    {line.replace(/\x1b\[[0-9;]*m/g, '')}
+                                </span>
+                             </div>
+                         ))}
                          <div className="flex items-center gap-2 text-slate-300 mt-1">
                             <span className="text-green-500 font-bold">➜</span>
                             <span className="text-cyan-400">{getPathString(cwdId!)}</span>

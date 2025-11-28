@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { UserRole, ChatMessage, IntrospectionLayer, WorkflowStage, SystemProtocol } from '../types';
 import { MessageCircle, X, Send, User, RotateCcw, Cpu, WifiOff } from 'lucide-react';
@@ -9,6 +6,7 @@ import { generateAgentResponse } from '../services/geminiService';
 import { dynamicUi } from '../services/dynamicUiService';
 import { systemBus } from '../services/systemBus';
 import { vfs } from '../services/virtualFileSystem';
+import { introspection } from '../services/introspectionEngine'; // Import Introspection
 
 interface ChatWidgetProps {
   currentUserRole: UserRole;
@@ -110,6 +108,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
                   IntrospectionLayer.OPTIMAL, 
                   WorkflowStage.EXECUTION
               );
+              
+              // Note: thoughts are auto-injected by generateAgentResponse now.
 
               // 1. PARSE PROTOCOLS
               if (response.output.includes('<<<UI_SCHEMA>>>')) {
@@ -143,10 +143,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
                   const match = response.output.match(/<<<NAVIGATE:\s*([a-zA-Z0-9_]+)>>>/);
                   if (match) {
                       const screen = match[1];
-                      // Simply save preference or use event bus to switch tab. 
-                      // For simplicity, we assume App.tsx listens to a protocol or we just inform user.
                       console.log("AI Requested Navigation to:", screen);
-                      // In a real implementation, App.tsx would subscribe to NAVIGATION protocol.
                   }
               }
 
@@ -180,6 +177,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserRole, onChangeRole }
               const data = await res.json();
               const cleanedText = cleanProtocolOutput(data.choices[0].message.content);
               const thoughts = data.choices[0].message.thoughts || [];
+
+              // CRITICAL: Explicitly inject thoughts from SERVER response into LOCAL Introspection Hub
+              if (thoughts.length > 0) {
+                  introspection.setRecentThoughts(thoughts);
+              }
 
               setMessages(prev => [...prev, { 
                   id: crypto.randomUUID(), 

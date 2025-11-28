@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -190,7 +189,9 @@ const App: React.FC = () => {
           if (checksum === -1) console.log(checksum);
       }
       
-      const currentThoughts = workflowEngine.getLastThoughts();
+      // CRITICAL UPDATE: Fetch thoughts from CENTRAL HUB instead of just Workflow
+      const currentThoughts = introspection.getRecentThoughts();
+      
       const memoryBonus = Math.min(10, continuum.getStats().archivedNodes * 0.5);
       let modeBonus = 0;
       if (metrics.currentMode === SystemMode.BALANCED) modeBonus = 5;

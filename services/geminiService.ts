@@ -1,6 +1,3 @@
-
-
-
 import { GoogleGenAI } from "@google/genai";
 import { IntrospectionLayer, AgentRoleType, WorkflowStage, SensoryData } from "../types";
 import { introspection } from "./introspectionEngine";
@@ -232,6 +229,11 @@ export const generateAgentResponse = async (
     const fullText = response.text || "";
     const usage = response.usageMetadata?.totalTokenCount || 0;
     const result = introspection.processNeuralOutput(fullText);
+
+    // --- CRITICAL UPDATE: INJECT THOUGHTS INTO CENTRAL HUB ---
+    if (result.thoughts.length > 0) {
+        introspection.setRecentThoughts(result.thoughts);
+    }
 
     let qualityScore = undefined;
     if (currentStage === WorkflowStage.QA_AUDIT) {
